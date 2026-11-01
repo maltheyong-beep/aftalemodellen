@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Forstå, husk og tegn aftalemodellen. En interaktiv dansk guide til erhvervsjura med tidslinje, flashcards, quiz og tegneøvelser.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f8fc">
+  <title>Aftalemodellen — fra tilbud til aftale</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='12' fill='%234c5ce5'/%3E%3Cpath d='M11 27 20 11l9 16M15 23h10' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="./style.css">
+  <script src="./script.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#overblik">Spring til indhold</a>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="#overblik" aria-label="Aftalemodellen, til overblik">
+        <span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 25 16 8l9 17M11 20h10"/></svg></span>
+        <span>Aftale<span class="brand-light">modellen</span><span class="brand-dot">.</span></span>
+      </a>
+      <nav class="main-nav" aria-label="Hovedmenu">
+        <a href="#overblik" aria-current="location">Overblik</a>
+        <a href="#model">Model</a>
+        <a href="#begreber">Begreber</a>
+        <a href="#flashcards">Flashcards</a>
+        <a href="#quiz">Quiz</a>
+        <a href="#tegn-selv">Tegn selv <span aria-hidden="true">↗</span></a>
+      </nav>
+      <button class="button primary present-launch" id="presentLaunch" type="button">Fremlæg <span aria-hidden="true">↗</span></button>
+      <button class="theme-toggle icon-button" id="themeToggle" type="button" aria-label="Tema: automatisk. Skift tema" title="Skift mellem automatisk, lyst og mørkt tema">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>
+        <span id="themeLabel" class="sr-only">Automatisk</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section id="overblik" class="hero section-anchor">
+      <div class="container hero-grid">
+        <div class="hero-copy reveal">
+          <p class="eyebrow"><span class="live-dot" aria-hidden="true"></span> ERHVERVSJURA · AFTALERET</p>
+          <h1>Fra tilbud til<br><span>bindende aftale.</span></h1>
+          <p class="hero-description">Syv trin. To parter. Én model.<br>Forstå den, øv den — og tegn den fra hukommelsen.</p>
+          <div class="hero-actions">
+            <a class="button primary" href="#model">Forstå modellen <span aria-hidden="true">↓</span></a>
+            <a class="button text-button" href="#tegn-selv">Prøv at tegne den <span aria-hidden="true">↗</span></a>
+          </div>
+          <div class="hero-meta"><span><span class="meta-check" aria-hidden="true">✓</span> Lær i dit eget tempo</span><span><span class="meta-check" aria-hidden="true">✓</span> Ingen login</span></div>
+        </div>
+        <div class="hero-visual reveal" aria-label="Et tilbud sendes fra tilbudsgiver til tilbudsmodtager. En accept sendes tilbage. Brevsprække betyder modtaget, kundskab betyder læst.">
+          <div class="visual-topline"><span class="mini-label">DEN LILLE FORSKEL, DER TÆLLER</span><span class="window-dots" aria-hidden="true">● ● ●</span></div>
+          <div class="visual-people"><span class="role-giver"><span class="person-icon" data-icon="giver" aria-hidden="true"></span>Tilbudsgiver</span><span class="role-recipient"><span class="person-icon recipient" data-icon="recipient" aria-hidden="true"></span>Tilbudsmodtager</span></div>
+          <div class="visual-route" aria-hidden="true"><span>Tilbud</span><div class="route-line"><span class="route-envelope role-received" data-icon="received"></span><span>→</span></div></div>
+          <div class="visual-moments"><span class="moment received"><span data-icon="received" aria-hidden="true"></span><strong>Modtaget</strong><small>Brevsprække</small></span><span class="moment read"><span data-icon="read" aria-hidden="true"></span><strong>Læst</strong><small>Kundskab</small></span></div>
+          <div class="visual-route return-route" aria-hidden="true"><span>Accept</span><div class="route-line"><span>←</span></div></div>
+          <div class="visual-result"><span class="result-check" aria-hidden="true">✓</span> Fra tilbud til en bindende aftale</div>
+          <span class="visual-note">Modtaget ≠ læst</span>
+        </div>
+      </div>
+      <div class="container">
+        <div class="quick-overview reveal" id="overviewCard">
+          <div class="overview-title"><span class="small-icon" aria-hidden="true">↳</span><h2>Kort fortalt</h2></div>
+          <p>Ved aftalers indgåelse ønskes et svar på, om der er indgået en <strong>bindende aftale mellem to parter.</strong></p>
+          <div class="overview-equations"><span class="role-received"><i data-icon="received" aria-hidden="true"></i> Brevsprække <strong>= modtaget</strong></span><span class="role-read"><i data-icon="read" aria-hidden="true"></i> Kundskab <strong>= læst</strong></span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Samme symboler og farver bruges i alle øvelser og i grafikken. -->
+    <section class="legend-section" aria-labelledby="legendTitle">
+      <div class="container">
+        <div class="semantic-legend">
+          <div><p class="eyebrow">DIN FARVE- OG IKONNØGLE</p><h2 id="legendTitle">Se forskellen med det samme.</h2><p>Farve, ikon og navn følges altid ad.</p></div>
+          <div id="semanticLegend" class="legend-items"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="model-billede" class="section graphic-section section-anchor" aria-labelledby="graphicTitle">
+      <div class="container">
+        <div class="section-heading"><div><p class="eyebrow">HELE OVERBLIKKET</p><h2 id="graphicTitle">Modellen på ét billede.</h2><p>Følg tallene fra 1 til 7. Tryk på billedet for at zoome.</p></div><button class="button secondary" id="openCheat" type="button">Åbn snydeseddel ↗</button></div>
+        <div class="graphic-card">
+          <button class="graphic-zoom-target" id="graphicZoomTarget" type="button" aria-label="Åbn hele aftalemodellen i fuldskærmsvisning"><span id="modelGraphic" class="model-graphic"></span><span class="zoom-cue">Zoom ind ↗</span></button>
+          <div class="graphic-actions"><button class="button primary" id="zoomGraphic" type="button">Zoom / fuld skærm ↗</button><button class="button secondary" id="downloadGraphic" type="button">Download som billede (PNG)</button><button class="button secondary" id="printGraphic" type="button">Print/gem som PDF</button></div>
+          <p class="graphic-note">PNG og print har en fast lys baggrund. Skærmvisningen følger dit tema.</p>
+          <a id="lastDownload" class="download-fallback" hidden>Åbn eller gem det færdige PNG-billede</a>
+          <p id="graphicMessage" role="status" class="field-hint"></p>
+        </div>
+      </div>
+    </section>
+
+    <section id="model" class="section section-anchor">
+      <div class="container">
+        <div class="section-heading reveal"><div><p class="eyebrow">01 / FORSTÅ</p><h2>En aftale. Trin for trin.</h2><p>Klik på et trin, eller lad modellen vise dig vejen.</p></div><span class="section-tag">7 trin · 2 parter</span></div>
+        <div class="model-layout reveal">
+          <div class="model-board">
+            <div class="lane-headings"><span class="role-giver"><span class="lane-avatar" data-icon="giver" aria-hidden="true"></span>Tilbudsgiver</span><span class="role-recipient"><span class="lane-avatar" data-icon="recipient" aria-hidden="true"></span>Tilbudsmodtager</span></div>
+            <div id="timeline" class="timeline" role="group" aria-label="Aftalemodellens syv trin"></div>
+            <div class="model-legend"><span class="role-received"><i data-icon="received" aria-hidden="true"></i> Modtaget</span><span class="role-read"><i data-icon="read" aria-hidden="true"></i> Læst</span><span class="role-time"><i data-icon="time" aria-hidden="true"></i> Betænkningstid</span></div>
+          </div>
+          <aside class="model-detail" aria-label="Forklaring af det valgte trin">
+            <div><span class="pill" id="stepCategory">Tilbud</span><span class="detail-counter" id="stepCounter">01 / 07</span></div>
+            <div class="detail-symbol" id="stepIcon" aria-hidden="true"></div>
+            <div id="stepRole" class="semantic-tags"></div>
+            <div aria-live="polite" aria-atomic="true"><h3 id="stepTitle">Tilbud</h3><p id="stepExplanation">Tilbudsgiver sender et tilbud til tilbudsmodtager.</p><p class="binding-note" id="stepBinding"></p></div>
+            <div class="step-navigation"><button class="button secondary" id="previousStep" type="button" aria-label="Forrige trin">←</button><button class="button primary" id="nextStep" type="button">Næste trin <span aria-hidden="true">→</span></button></div>
+            <button class="button play-button" id="playModel" type="button" aria-pressed="false"><span aria-hidden="true">▷</span> Afspil hele modellen</button>
+            <button class="button secondary listen-detail" id="listenCurrentStep" type="button">Læs dette trin op</button>
+            <div class="deadline-note role-time"><strong><span data-icon="time" aria-hidden="true"></span> Hvad er en acceptfrist?</strong><p>Den tid, man har til at acceptere tilbuddet.</p></div>
+          </aside>
+        </div>
+      </div>
+    </section>
+
+    <section id="begreber" class="section section-tinted section-anchor">
+      <div class="container">
+        <div class="section-heading reveal"><div><p class="eyebrow">02 / FÅ STYR PÅ ORDENE</p><h2>Små ord. Stor betydning.</h2><p>Åbn et begreb, og få den korte forklaring.</p></div></div>
+        <div class="concept-layout reveal">
+          <div class="accordion-list">
+            <details class="concept important"><summary><span>Deklaratoriske regler <span class="important-badge">VIGTIGT</span></span><span class="accordion-plus" aria-hidden="true">+</span></summary><p><strong>Fravigelige.</strong> Parterne må gerne aftale noget andet, end loven siger.</p></details>
+            <details class="concept important"><summary><span>Præceptive regler <span class="important-badge">VIGTIGT</span></span><span class="accordion-plus" aria-hidden="true">+</span></summary><p><strong>Ufravigelige.</strong> Parterne må IKKE aftale andet, end loven siger.</p></details>
+            <details class="concept important"><summary><span>Beskyttelsespræceptive regler <span class="important-badge">VIGTIGT</span></span><span class="accordion-plus" aria-hidden="true">+</span></summary><p>Parterne må gerne aftale andet, så længe det er til <strong>den svage parts fordel.</strong></p></details>
+            <details class="concept"><summary><span>Skriftlig eller mundtlig aftale</span><span class="accordion-plus" aria-hidden="true">+</span></summary><p><strong>Begge er bindende.</strong></p></details>
+            <details class="concept"><summary><span>Stiltiende løfte</span><span class="accordion-plus" aria-hidden="true">+</span></summary><p>Man bliver bundet af en aftale <strong>uden at sige noget.</strong></p></details>
+            <details class="concept"><summary><span>De fire centrale ord</span><span class="accordion-plus" aria-hidden="true">+</span></summary><p><strong>Løfte, tilbud, accept og påbud</strong> er de fire centrale ord i aftaleretten.</p></details>
+            <details class="concept"><summary><span>Hvornår binder et løfte?</span><span class="accordion-plus" aria-hidden="true">+</span></summary><p>Et løfte binder, når det er <strong>læst</strong> — i kundskabsøjeblikket.</p></details>
+            <details class="concept"><summary><span>Hvornår binder et påbud?</span><span class="accordion-plus" aria-hidden="true">+</span></summary><p>Et påbud binder, når det er <strong>modtaget</strong> — i brevsprækkeøjeblikket.</p></details>
+          </div>
+          <div class="concept-side">
+            <div class="comparison-card"><p class="eyebrow">HOLD DEM ADSKILT</p><h3>Modtaget eller læst?</h3><div class="table-wrap"><table><caption class="sr-only">Sammenligning af brevsprækkeøjeblikket og kundskabsøjeblikket</caption><thead><tr><th scope="col">Øjeblik</th><th scope="col">Hvad sker der?</th><th scope="col">Hvad binder her?</th></tr></thead><tbody><tr><th scope="row"><i class="dot received-dot" aria-hidden="true"></i> Brevsprække</th><td>Meddelelsen er modtaget.</td><td>Et påbud.</td></tr><tr><th scope="row"><i class="dot read-dot" aria-hidden="true"></i> Kundskab</th><td>Meddelelsen er læst.</td><td>Et løfte.</td></tr></tbody></table></div></div>
+            <aside class="memory-card"><span class="memory-icon" aria-hidden="true">✦</span><p class="eyebrow">EN LILLE HUSKEREGEL</p><h3>Breve i kassen.<br>Viden i hovedet.</h3><p><strong>Brevsprække:</strong> Brevet er i kassen — modtaget.<br><strong>Kundskab:</strong> Du kender indholdet — læst.</p></aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="husk" class="section section-anchor memory-section" aria-labelledby="memoryTitle">
+      <div class="container">
+        <div class="section-heading"><div><p class="eyebrow">GØR DET NEMT AT HUSKE</p><h2 id="memoryTitle">Husk det let.</h2><p>Tre små huskehjælpere — og svar klar til lærerens spørgsmål.</p></div><button class="button secondary" id="openCheatMemory" type="button">Snydeseddel på én skærm ↗</button></div>
+        <div class="mnemonic-grid">
+          <article class="mnemonic-card" id="memoryMoment"><div class="semantic-tags" data-tags="received read"></div><h3>Først i kassen.<br>Så i knolden.</h3><p><strong>Brevsprække = Breve i kassen.</strong> Meddelelsen er modtaget.</p><p><strong>Kundskab = Knuden i hovedet.</strong> Nu har du læst den og kender indholdet.</p></article>
+          <article class="mnemonic-card" id="memoryOrder"><span class="pill">T · B · K · B · A · B · K</span><h3>Send. Frem. Læs.<br>Tænk. Ja. Frem. Læs.</h3><p>Send et tilbud. Det kommer frem og læses. Tænk dig om. Send dit ja. Det kommer frem og læses.</p><p class="mnemonic-key">Tilbud → Brevsprække → Kundskab → Betænkningstid → Accept → Brevsprække → Kundskab.</p></article>
+          <article class="mnemonic-card" id="memoryRules"><div class="semantic-tags" data-tags="declarative mandatory protective"></div><h3>Ændr. Følg. Beskyt.</h3><p><strong>Deklaratorisk:</strong> Det, der kan ændres.</p><p><strong>Præceptiv:</strong> Præcis som loven siger.</p><p><strong>Beskyttelsespræceptiv:</strong> Beskyt den svage — andre vilkår skal være til den svage parts fordel.</p></article>
+        </div>
+        <article class="five-things" id="fiveThings"><div><p class="eyebrow">DIT HUSKEKORT</p><h3>5 ting du skal kunne.</h3></div><ol><li><strong>Brevsprække</strong> = modtaget.</li><li><strong>Kundskab</strong> = læst.</li><li>Tilbudsgiver bliver bundet, når <strong>tilbuddet læses.</strong></li><li>Accepten skal <strong>komme frem inden fristen.</strong></li><li>Begge er bundet, når tilbudsgiver <strong>læser accepten.</strong></li></ol></article>
+        <div class="teacher-card" aria-labelledby="teacherTitle"><div class="teacher-heading"><p class="eyebrow">KORTE SVAR, DU KAN SIGE HØJT</p><h3 id="teacherTitle">Hvis læreren spørger…</h3></div><div id="teacherQuestions" class="teacher-questions"></div></div>
+      </div>
+    </section>
+
+    <section id="flashcards" class="section section-anchor">
+      <div class="container">
+        <div class="section-heading reveal"><div><p class="eyebrow">03 / HUSK</p><h2>Vend et kort. Sæt det fast.</h2><p>Prøv at svare først. De svære kort vender oftere tilbage.</p></div><button class="button secondary" id="shuffleFlash" type="button"><span aria-hidden="true">⇄</span> Bland kort</button></div>
+        <div class="flash-workspace reveal">
+          <div class="flash-progress-row"><span><strong id="flashMastered">0</strong> / <span class="flash-total">28</span> klaret</span><span id="flashStatus">Dit næste lille skridt</span></div>
+          <progress id="flashProgress" max="28" value="0" aria-label="Flashcards du kan"></progress>
+          <div class="learning-card-tools"><div id="flashSemantics" class="semantic-tags"></div><button class="sound-button" id="listenFlash" type="button" aria-label="Læs den viste side af flashkortet op"><span data-icon="speaker" aria-hidden="true"></span><span class="sr-only">Læs kort op</span></button></div>
+          <div class="flash-navigation"><button class="icon-button flash-arrow" id="previousFlash" type="button" aria-label="Forrige flashcard">←</button><button class="flash-card" id="flashCard" type="button" aria-pressed="false" aria-label="Vend flashcard for at se svaret"><span class="flash-inner"><span class="flash-face flash-front"><span class="flash-label" id="flashTopic">BEGREB</span><span class="flash-question" id="flashQuestion"></span><span class="flash-hint"><span aria-hidden="true">↻</span> Tryk for at vende</span></span><span class="flash-face flash-back" aria-hidden="true"><span class="flash-label">SVAR</span><span class="flash-answer" id="flashAnswer"></span><span class="flash-hint">Tryk for at se spørgsmålet</span></span></span></button><button class="icon-button flash-arrow" id="nextFlash" type="button" aria-label="Næste flashcard">→</button></div>
+          <div class="flash-rating"><button class="button secondary" id="flashAgain" type="button" disabled><span aria-hidden="true">↻</span> Øv igen</button><button class="button primary" id="flashKnown" type="button" disabled><span aria-hidden="true">✓</span> Jeg kunne den</button></div>
+          <p class="interaction-hint">Vend med klik eller mellemrum · Skift med ← → eller swipe</p>
+          <button class="subtle-button" id="resetFlash" type="button">Nulstil flashcard-fremgang</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="quiz" class="section section-tinted section-anchor">
+      <div class="container">
+        <div class="section-heading reveal"><div><p class="eyebrow">04 / TEST DIG SELV</p><h2>Har du fanget det?</h2><p>15 spørgsmål. Feedback med det samme. Ingen tidspres.</p></div><span class="section-tag">Ét svar pr. spørgsmål</span></div>
+        <div class="quiz-card reveal" id="quizCard">
+          <div id="quizQuestionPanel"><div class="quiz-topline"><span class="mini-label" id="quizCounter">SPØRGSMÅL 01 / 15</span><span id="quizRunningScore">0 rigtige</span></div><progress id="quizProgress" max="15" value="0" aria-label="Besvarede quizspørgsmål"></progress><div class="learning-card-tools"><div id="quizSemantics" class="semantic-tags"></div><button class="sound-button" id="listenQuiz" type="button" aria-label="Læs quizspørgsmålet og svarmulighederne op"><span data-icon="speaker" aria-hidden="true"></span><span class="sr-only">Læs spørgsmål op</span></button></div><h3 id="quizQuestion" tabindex="-1"></h3><div id="quizOptions" class="quiz-options" role="group" aria-labelledby="quizQuestion"></div><div id="quizFeedback" class="quiz-feedback" role="status" hidden></div><div class="quiz-bottom"><span id="quizInstruction">Vælg det svar, du mener er rigtigt.</span><button class="button primary" id="nextQuestion" type="button" disabled>Næste spørgsmål <span aria-hidden="true">→</span></button></div></div>
+          <div id="quizResult" class="quiz-result" hidden><span class="result-icon" aria-hidden="true">✓</span><p class="eyebrow">QUIZ GENNEMFØRT</p><h3 id="quizResultTitle" tabindex="-1"></h3><p id="quizResultText"></p><div class="quiz-result-actions"><button class="button primary" id="retryWrong" type="button">Øv de forkerte igen</button><button class="button secondary" id="restartQuiz" type="button">Tag hele quizzen igen</button></div><div id="quizReview" class="quiz-review"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tegn-selv" class="section drawing-section section-anchor">
+      <div class="container">
+        <div class="section-heading reveal"><div><p class="eyebrow">05 / GØR MODELLEN TIL DIN</p><h2>Nu er det din tur.</h2><p>Kan du genskabe aftalemodellen fra hukommelsen?</p></div><span class="section-tag accent-tag">Lær ved at gøre</span></div>
+        <div class="practice-workspace reveal">
+          <div class="practice-topbar"><div class="mode-tabs" role="tablist" aria-label="Vælg øvelsestilstand"><button id="drawTab" type="button" role="tab" aria-selected="true" aria-controls="drawPanel" tabindex="0"><span aria-hidden="true">✎</span> Tegn i hånden</button><button id="buildTab" type="button" role="tab" aria-selected="false" aria-controls="buildPanel" tabindex="-1"><span aria-hidden="true">▦</span> Byg modellen</button></div><button class="button secondary small-button" id="toggleAnswer" type="button" aria-expanded="false" aria-controls="answerModel">Vis facit <span aria-hidden="true">↗</span></button></div>
+          <div class="practice-columns" id="practiceColumns">
+            <div class="practice-main">
+              <div id="drawPanel" class="practice-panel" role="tabpanel" aria-labelledby="drawTab">
+                <div class="drawing-toolbar" role="group" aria-label="Tegneværktøjer">
+                  <div class="tool-group"><button class="tool-button is-active" id="penTool" type="button" aria-pressed="true" title="Pen"><span aria-hidden="true">✎</span> Pen</button><button class="tool-button" id="eraserTool" type="button" aria-pressed="false" title="Viskelæder"><span aria-hidden="true">▱</span> Viskelæder</button></div>
+                  <div class="color-tools" id="semanticPenColors" role="group" aria-label="Penfarver med faste betydninger"><button class="color-swatch is-active" type="button" data-color="#26324b" style="--swatch:#26324b" aria-label="Mørk pen" aria-pressed="true"></button><button class="color-swatch" type="button" data-color="#1d4ed8" data-icon="giver" style="--swatch:#1d4ed8" aria-label="Blå pen: tilbudsgiver" aria-pressed="false"></button><button class="color-swatch" type="button" data-color="#b45309" data-icon="recipient" style="--swatch:#b45309" aria-label="Orange pen: tilbudsmodtager" aria-pressed="false"></button><button class="color-swatch" type="button" data-color="#7c3aed" data-icon="received" style="--swatch:#7c3aed" aria-label="Lilla pen: brevsprække, modtaget" aria-pressed="false"></button><button class="color-swatch" type="button" data-color="#16724c" data-icon="read" style="--swatch:#16724c" aria-label="Grøn pen: kundskab, læst" aria-pressed="false"></button><button class="color-swatch" type="button" data-color="#805600" data-icon="time" style="--swatch:#805600" aria-label="Gulbrun pen: betænkningstid og acceptfrist" aria-pressed="false"></button><label class="custom-color" title="Vælg en anden farve"><span class="sr-only">Vælg penfarve</span><input id="customColor" type="color" value="#4c5ce5"></label></div>
+                  <label class="pen-size">Streg <input id="penSize" type="range" min="1" max="12" value="3" aria-label="Stregtykkelse"><output id="penSizeValue" for="penSize">3</output></label>
+                  <div class="tool-group toolbar-actions"><button class="tool-button" id="undoDrawing" type="button" disabled aria-label="Fortryd sidste streg" title="Fortryd sidste streg">↶</button><button class="tool-button" id="redoDrawing" type="button" disabled aria-label="Gendan sidste streg" title="Gendan sidste streg">↷</button><button class="tool-button" id="clearDrawing" type="button" disabled>Ryd</button></div>
+                </div>
+                <div class="canvas-wrap"><canvas id="drawingCanvas" width="1000" height="750" role="img" tabindex="0" aria-label="Tegn aftalemodellen med mus, finger eller pen. Brug Byg modellen, hvis du vil arbejde med tastatur.">Din browser kan ikke vise tegnefeltet. Vælg Byg modellen for at øve de syv trin.</canvas><div class="canvas-empty" id="canvasEmpty" aria-hidden="true"><span>✎</span><strong>Et tomt ark. Din model.</strong><p>Tegn de to parter, pilene og de syv trin.</p><small>Mus, finger og pen er velkomne.</small></div></div>
+                <p class="canvas-caption"><span class="role-received"><i data-icon="received" aria-hidden="true"></i> Lilla = modtaget</span><span class="role-read"><i data-icon="read" aria-hidden="true"></i> Grøn = læst</span><span>Fortryd: Ctrl / ⌘ + Z</span></p>
+                <details class="self-assessment" id="selfAssessment" open><summary>Gennemgå din tegning <span class="pill">Selvvurdering</span></summary><p>Siden aflæser ikke din tegning. Sæt selv kryds ved det, du har med, og sammenlign med facit.</p><fieldset><legend>Hvilke trin har du tegnet? <span>10 point pr. trin</span></legend><div id="drawingChecklist" class="checklist-grid"></div></fieldset><fieldset><legend>Er trinene i rigtig rækkefølge? <span>Op til 20 point</span></legend><div class="order-options"><label><input type="radio" name="drawingOrder" value="0" checked> Ikke endnu</label><label><input type="radio" name="drawingOrder" value="10"> Delvist</label><label><input type="radio" name="drawingOrder" value="20"> Ja, hele rækkefølgen</label></div><p class="field-hint">Rækkefølgepoint vægtes efter, hvor mange af de 7 trin du har med.</p></fieldset><fieldset><legend>De to nøglebegreber <span>5 point pr. begreb</span></legend><label class="check-label"><input type="checkbox" id="drawingMoments"> Jeg skelner mellem brevsprække = modtaget og kundskab = læst.</label><label class="check-label"><input type="checkbox" id="drawingDeadline"> Jeg har acceptfristen med: tiden til at acceptere tilbuddet.</label></fieldset></details>
+              </div>
+              <div id="buildPanel" class="practice-panel build-panel" role="tabpanel" aria-labelledby="buildTab" hidden>
+                <div class="build-instructions"><p><strong>Få de syv trin på plads.</strong> Træk et kort til en plads. Du kan også vælge et kort og trykke på pladsens overskrift.</p><button class="subtle-button" id="resetBuild" type="button">Bland og start forfra ↻</button></div>
+                <div class="build-tray" id="buildTray" role="group" aria-label="Trin der endnu ikke er placeret"></div>
+                <p class="build-status" id="buildStatus" role="status">Vælg et kort, og placér det i modellen.</p>
+                <div class="build-lane-headings"><span class="role-giver"><i data-icon="giver" aria-hidden="true"></i> Tilbudsgiver</span><span class="role-recipient"><i data-icon="recipient" aria-hidden="true"></i> Tilbudsmodtager</span></div>
+                <div class="build-slots" id="buildSlots" role="group" aria-label="Den tomme models syv pladser"></div>
+                <p class="scoring-note">Placering: 70 point · Rækkefølge: 20 point · Modtaget/læst: 10 point.</p>
+              </div>
+            </div>
+            <aside id="answerModel" class="answer-model" aria-label="Facit til aftalemodellen" hidden><p class="eyebrow">FACIT / SAMMENLIGN</p><h3>Sådan hænger det sammen.</h3><div class="answer-lanes"><span class="role-giver"><i data-icon="giver" aria-hidden="true"></i> Tilbudsgiver</span><span class="role-recipient"><i data-icon="recipient" aria-hidden="true"></i> Tilbudsmodtager</span></div><ol id="answerSteps" class="answer-steps"></ol><p class="answer-deadline role-time"><strong><i data-icon="time" aria-hidden="true"></i> Acceptfrist:</strong> Den tid, man har til at acceptere tilbuddet.</p><div class="model-legend"><span class="role-received"><i data-icon="received" aria-hidden="true"></i> Modtaget</span><span class="role-read"><i data-icon="read" aria-hidden="true"></i> Læst</span></div></aside>
+          </div>
+          <div class="practice-footer"><p id="practiceModeNote">Din tegning + din tjekliste = din selvvurdering.</p><button class="button primary" id="checkModel" type="button">Tjek min model <span aria-hidden="true">→</span></button></div>
+          <p class="practice-message" id="practiceMessage" role="status" hidden></p>
+        </div>
+
+        <section class="model-score" id="modelScore" aria-label="Resultat af din model" hidden><div class="score-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle class="score-track" cx="60" cy="60" r="50"/><circle class="score-fill" id="scoreCircle" cx="60" cy="60" r="50"/></svg><div><strong id="scoreValue" aria-hidden="true">0</strong><span aria-hidden="true">af 100</span></div><p class="sr-only" id="scoreAccessible"></p></div><div class="score-summary"><span class="pill" id="scoreMode"></span><h3 id="scoreTitle" tabindex="-1"></h3><p id="scoreDescription"></p><div class="score-breakdown" id="scoreBreakdown"></div><ul id="scoreMissing"></ul></div></section>
+        <div class="history-panel reveal"><div class="history-heading"><div><p class="eyebrow">DU BLIVER BEDRE FOR HVER GANG</p><h3>Din øvehistorik</h3></div><div class="best-scores"><span>Bedst · byg <strong id="bestBuild">—</strong></span><span>Bedst · tegning <strong id="bestDraw">—</strong></span></div></div><p id="emptyHistory" class="empty-history">Din første model er begyndelsen. Her gemmes dine seneste 20 forsøg på denne enhed.</p><ol id="scoreHistory" class="history-list"></ol></div>
+      </div>
+    </section>
+    <noscript><div class="container noscript-note">Slå JavaScript til for at bruge tidslinje, flashcards, quiz og tegneøvelser. Du kan stadig læse overblikket og begreberne.</div></noscript>
+  </main>
+
+  <!-- Native dialoger holder fokus inde i visningen og kan lukkes med Escape. -->
+  <dialog class="study-dialog graphic-dialog" id="graphicDialog" aria-labelledby="zoomTitle">
+    <div class="dialog-toolbar"><div><p class="eyebrow">ZOOM OG OVERBLIK</p><h2 id="zoomTitle">Hele aftalemodellen</h2></div><div class="dialog-actions"><button class="button secondary small-button" id="graphicZoomOut" type="button" aria-label="Zoom ud">−</button><output id="graphicZoomValue" aria-live="polite">100 %</output><button class="button secondary small-button" id="graphicZoomIn" type="button" aria-label="Zoom ind">+</button><button class="button secondary small-button" id="graphicFit" type="button">Tilpas</button><button class="button secondary small-button native-fullscreen" data-fullscreen="graphicDialog" type="button">Fuld skærm</button><button class="icon-button" data-close="graphicDialog" type="button" aria-label="Luk modelbilledet">×</button></div></div>
+    <p class="dialog-hint">På telefon: brug + og −, og rul i billedet for at se detaljerne.</p><div class="graphic-viewport" id="graphicViewport"><div id="zoomGraphicContent"></div></div>
+  </dialog>
+  <dialog class="study-dialog cheat-dialog" id="cheatDialog" aria-labelledby="cheatTitle"><div class="dialog-toolbar"><div><p class="eyebrow">DET VIGTIGSTE PÅ ÉN SKÆRM</p><h2 id="cheatTitle">Din snydeseddel</h2></div><div class="dialog-actions"><button class="button secondary small-button native-fullscreen" data-fullscreen="cheatDialog" type="button">Fuld skærm</button><button class="icon-button" data-close="cheatDialog" type="button" aria-label="Luk snydeseddel">×</button></div></div><div id="cheatContent" class="cheat-content"></div></dialog>
+  <dialog class="study-dialog present-dialog" id="presentDialog" aria-labelledby="presentationTitle"><div class="dialog-toolbar"><div><p class="eyebrow">ERHVERVSJURA · FREMLÆGGELSE</p><h2 id="presentationTitle">Aftalemodellen</h2></div><div class="dialog-actions"><button class="button secondary small-button" id="presentCheat" type="button">Snydeseddel</button><button class="button secondary small-button native-fullscreen" data-fullscreen="presentDialog" type="button">Fuld skærm</button><button class="icon-button" data-close="presentDialog" type="button" aria-label="Afslut fremlæggelse">×</button></div></div><progress id="presentationProgress" value="1" max="12" aria-label="Fremlæggelsens fremgang"></progress><div id="presentationContent" class="presentation-content"></div><div class="presentation-footer"><button class="button secondary" id="previousSlide" type="button">← Forrige</button><span id="slideCounter" role="status">1 / 12</span><span class="presentation-key-hint">← → skifter · Esc lukker</span><button class="button primary" id="nextSlide" type="button">Næste →</button></div></dialog>
+
+  <!-- Oplæsning starter udelukkende efter et klik. Ingen lyd ved indlæsning. -->
+  <aside class="reader-dock is-minimized" id="readerDock" aria-label="Dansk oplæser">
+    <button class="button primary reader-launch" id="readerLaunch" type="button"><span data-icon="speaker" aria-hidden="true"></span> Læs det hele op</button>
+    <div id="readerPanel" class="reader-panel" hidden>
+      <div class="reader-heading"><div><p class="eyebrow">LYT OG LÆR · DANSK</p><strong id="readerTitle">Læs det hele op</strong></div><div class="reader-heading-actions"><button class="subtle-button" id="readerAll" type="button">Hele emnet</button><button class="icon-button" id="minimizeReader" type="button" aria-label="Minimér oplæseren">−</button></div></div>
+      <div class="reader-controls"><button class="icon-button" id="readerPrevious" type="button" aria-label="Læs forrige afsnit">←</button><button class="button primary" id="readerPlay" type="button">Afspil</button><button class="button secondary" id="readerPause" type="button" aria-pressed="false">Pause</button><button class="button secondary" id="readerStop" type="button">Stop</button><button class="icon-button" id="readerNext" type="button" aria-label="Læs næste afsnit">→</button><label class="reader-speed">Hastighed <select id="readerRate"><option value="0.8">0.8×</option><option value="1" selected>1×</option><option value="1.2">1.2×</option></select></label><span id="readerCounter">1 / 1</span></div>
+      <p id="readerStatus" class="reader-status" role="status">Tryk Afspil for at starte.</p><p id="readerVoice" class="reader-voice"></p>
+    </div>
+  </aside>
+  <section id="printSheet" aria-label="Print af aftalemodellen"><h1>Aftalemodellen</h1><p>Tilbud → modtaget → læst → betænkningstid → accept → modtaget → læst.</p><div id="printGraphicContent"></div></section>
+  <footer class="site-footer"><div class="container footer-inner"><a class="brand footer-brand" href="#overblik">Aftalemodellen<span class="brand-dot">.</span></a><p>Forstå det. Husk det. Tegn det.</p><span class="offline-status" id="offlineStatus"><i class="dot read-dot" aria-hidden="true"></i> Ingen login · dine resultater bliver på enheden</span></div><div class="container source-note">Fagligt indhold: de angivne undervisningsnoter om aftalemodellen. Øvelserne følger denne forenklede undervisningsmodel.</div></footer>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
