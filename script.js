@@ -1,1420 +1,3158 @@
-/*
- * Aftalemodellen — ren JavaScript uden biblioteker.
- * Fagligt indhold følger de syv trin og begreber i opgavebeskrivelsen.
- * Filen bruges også som service worker, så der kun behøves tre webfiler.
+/* Aftalemodellen. Modellen følger brugerens whiteboardbillede.
+ * Grundbegreber er uddybet med forklaringer og øveeksempler; se README.
+ * Ingen eksterne biblioteker. Alle læringsvisninger deler samme indhold.
+ * Hovedpunkter, tidsforløb og sidetavlens noter holdes adskilt.
  */
 "use strict";
 
-if (typeof ServiceWorkerGlobalScope !== "undefined" && self instanceof ServiceWorkerGlobalScope) {
-  // Ved opdateringer: øg versionen, så den nye udgave får sin egen cache.
-  const cachePrefix = "aftalemodellen:" + new URL(self.registration.scope).pathname + ":";
-  const cacheName = cachePrefix + "v2";
-  const offlineFiles = ["./", "./index.html", "./style.css", "./script.js"];
+(() => {
+  const $ = (s, root = document) => root.querySelector(s);
+  const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
+  const motion = matchMedia("(prefers-reduced-motion: reduce)");
+  const system = matchMedia("(prefers-color-scheme: dark)");
+  const MODEL_VERSION = "tavle-2026-11-11";
+  const MODEL_IMAGE = $("#modelSourceImage").getAttribute("src");
+  const STORAGE_KEY = "aftalemodellen." + MODEL_VERSION;
+  const TYPES = {
+    giver: {
+      label: "TG · Tilbudsgiver",
+      hint: "Sender tilbuddet"
+    },
+    recipient: {
+      label: "TM · Tilbudsmodtager",
+      hint: "Modtager tilbuddet / acceptant"
+    },
+    received: {
+      label: "Modtaget",
+      hint: "Kuvertsymbolet"
+    },
+    read: {
+      label: "Læst",
+      hint: "Øjesymbolet"
+    },
+    time: {
+      label: "Tid og frister",
+      hint: "Tidsforløb · § 2 og § 3"
+    },
+    withdraw: {
+      label: "Tilbagekaldelse",
+      hint: "Inden kundskabsøjeblikket"
+    },
+    exception: {
+      label: "Afvigelser",
+      hint: "Forsinkelse · uoverensstemmende"
+    },
+    claim: {
+      label: "Reklamation",
+      hint: "Pligtmæssig reklamation · § 40"
+    }
+  };
+  const ICONS = {
+    giver: '<path d="M4 14v6h16v-6M12 16V3m-4 4 4-4 4 4"/>',
+    recipient: '<path d="M4 14v6h16v-6M12 3v12m-4-4 4 4 4-4"/>',
+    received: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
+    read: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+    time: '<path d="M5 3h14M5 21h14M7 3v4l10 10v4M17 3v4L7 17v4"/>',
+    withdraw: '<path d="m8 4-5 5 5 5M3 9h11a7 7 0 0 1 0 14"/>',
+    exception: '<path d="m12 3 10 18H2L12 3Z"/><path d="M12 9v5m0 3v.1"/>',
+    claim: '<path d="M21 11a8 8 0 0 1-8 8H8l-5 3v-7a8 8 0 1 1 18-4Z"/><path d="M7 10h10M7 14h6"/>',
+    speaker: '<path d="M3 9v6h4l5 4V5L7 9H3Zm13-1a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>'
+  };
+  const points = [{
+    id: "send",
+    title: "TG sender tilbud",
+    short: "Sender tilbud",
+    kind: "giver",
+    text: "TG er tilbudsgiver. TG sender tilbuddet til TM.",
+    note: "Her begynder fremsendelsestiden.",
+    location: "Øverst til venstre"
+  }, {
+    id: "receive",
+    title: "TM modtager tilbud",
+    short: "Modtager tilbud",
+    kind: "recipient",
+    text: "TM er tilbudsmodtager. TM modtager tilbuddet. Ved dette hovedpunkt ses både kuvert- og øjesymbolet.",
+    note: "Kuvert betyder modtaget. Øje betyder læst.",
+    location: "Øverst til højre"
+  }, {
+    id: "accept",
+    title: "TM = acceptant",
+    short: "Sender accept",
+    kind: "recipient",
+    text: "TM står som acceptant og sender accept.",
+    note: "Accepten går tilbage gennem tilbagesendelsestiden.",
+    location: "Nederst til højre"
+  }, {
+    id: "binding",
+    title: "Bindende aftale",
+    short: "Bindende aftale",
+    kind: "read",
+    text: "Nederst til venstre står bindende aftale ved øjesymbolet. Her ses også en kuvert.",
+    note: "Modellens returforløb ender i denne del af tavlen.",
+    location: "Nederst til venstre"
+  }];
+  const times = [{
+    id: "outbound",
+    title: "Fremsendelsestid",
+    kind: "time",
+    text: "Tidsforløbet fra TG sender tilbud til TM modtager tilbud."
+  }, {
+    id: "thinking",
+    title: "Betænkningstid",
+    kind: "time",
+    text: "Det lodrette tidsforløb hos TM mellem modtagelsen af tilbuddet og afsendelsen af accepten."
+  }, {
+    id: "return",
+    title: "Tilbagesendelsestid",
+    kind: "time",
+    text: "Tidsforløbet tilbage fra TM, som sender accept, til modellens venstre side."
+  }];
+  const notes = [{
+    id: "withdraw",
+    title: "Tilbagekaldelse",
+    kind: "withdraw",
+    text: "Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket.",
+    build: "Tilbagekaldelse inden kundskabsøjeblikket",
+    slot: "Tilbagekaldelsesnoten"
+  }, {
+    id: "fixed",
+    title: "AFTL § 2 · Fast frist",
+    kind: "time",
+    text: "På tavlen står AFTL § 2 sammen med fast frist.",
+    build: "§ 2 · Fast frist",
+    slot: "Fast frist"
+  }, {
+    id: "legal",
+    title: "AFTL § 3 · Den legale acceptfrist",
+    kind: "time",
+    text: "Den legale acceptfrist står ved AFTL § 3. Herunder står rimelig betænkningstid samt frem- og tilbagesendelsestid.",
+    build: "§ 3 · Rimelig betænkningstid + frem- og tilbagesendelsestid",
+    slot: "Den legale acceptfrist"
+  }, {
+    id: "late",
+    title: "Forsinkelse · § 4",
+    kind: "exception",
+    text: "Forsinkelse står ved § 4 og noten nyt tilbud.",
+    build: "§ 4 · Forsinkelse (nyt tilbud)",
+    slot: "Forsinkelse"
+  }, {
+    id: "different",
+    title: "Uoverensstemmende · § 6",
+    kind: "exception",
+    text: "Uoverensstemmende står ved § 6 og noten modbud.",
+    build: "§ 6 · Uoverensstemmende (modbud)",
+    slot: "Uoverensstemmende"
+  }, {
+    id: "claim",
+    title: "Pligtmæssig reklamation · § 40",
+    kind: "claim",
+    text: "Tavlen forbinder både forsinkelse (§ 4) og uoverensstemmende (§ 6) med pligtmæssig reklamation, § 40.",
+    build: "§ 40 · Pligtmæssig reklamation",
+    slot: "Fælles note til § 4 og § 6"
+  }];
+  // Øvelsen har syv forløbsdele: fire hovedpunkter og tre tidsforløb.
+  const parts = [{
+    ...points[0],
+    label: "TG sender tilbud",
+    slot: "Start · øverst til venstre",
+    flow: true
+  }, {
+    ...times[0],
+    label: "Fremsendelsestid",
+    slot: "Fra venstre mod højre",
+    flow: true
+  }, {
+    ...points[1],
+    label: "TM modtager tilbud",
+    slot: "Øverst til højre",
+    flow: true
+  }, {
+    ...times[1],
+    label: "Betænkningstid",
+    slot: "Lodret hos TM",
+    flow: true
+  }, {
+    ...points[2],
+    label: "TM = acceptant · sender accept",
+    slot: "Nederst til højre",
+    flow: true
+  }, {
+    ...times[2],
+    label: "Tilbagesendelsestid",
+    slot: "Tilbage mod venstre",
+    flow: true
+  }, {
+    ...points[3],
+    label: "Bindende aftale",
+    slot: "Afslutning · nederst til venstre",
+    flow: true
+  }, ...notes.map(n => ({
+    ...n,
+    label: n.build,
+    flow: false
+  }))];
+  const partById = new Map(parts.map(p => [p.id, p]));
+  const basicConcepts = [
+  {
+    "id": "silent",
+    "title": "Stiltiende løfte",
+    "kind": "read",
+    "text": "Du kan vise, at du vil indgå en aftale, gennem dine handlinger uden at sige ja højt. Det kaldes også konkludent adfærd.",
+    "example": "Du lægger en bolle på butikkens kassebånd og betaler. Dine handlinger viser, at du køber den, selv om du ikke siger noget.",
+    "remember": "Det er handlingen, der viser accepten. Tavshed alene betyder normalt ikke ja."
+  },
+  {
+    "id": "form",
+    "title": "Skriftlig eller mundtlig aftale",
+    "kind": "giver",
+    "text": "En aftale kan som udgangspunkt indgås både på skrift og ved tale. Parterne skal være enige om det aftalte; man bliver ikke bundet af enhver besked eller samtale.",
+    "example": "Sælger: \"Du kan købe min cykel for 500 kr.\" Køber: \"Ja, jeg køber den for 500 kr.\" De kan aftale det ansigt til ansigt eller skrive det til hinanden.",
+    "remember": "En underskrift er ikke altid nødvendig. Skrift gør det ofte lettere at bevise aftalen. Visse aftaletyper har særlige formkrav."
+  },
+  {
+    "id": "four-words",
+    "title": "De fire centrale ord",
+    "kind": "time",
+    "text": "Ordene har forskellige opgaver. Lær betydningen af hvert ord, så du kan forklare, hvad parterne faktisk gør.",
+    "items": [
+      [
+        "Løfte",
+        "Jeg påtager mig en pligt."
+      ],
+      [
+        "Tilbud",
+        "Mit konkrete forslag til en aftale."
+      ],
+      [
+        "Accept",
+        "Mit ja til tilbuddet, som det er."
+      ],
+      [
+        "Påbud",
+        "Jeg giver en meddelelse, der kan få retsvirkning for modtageren."
+      ]
+    ],
+    "example": "Tilbud: \"Cyklen koster 500 kr.\" Accept: \"Ja, jeg køber den for 500 kr.\" Sælger lover at levere; køber lover at betale.",
+    "remember": "Tilbud og accept er ikke synonymer. Et påbud er heller ikke bare et andet ord for et tilbud."
+  },
+  {
+    "id": "promise",
+    "title": "Løfte",
+    "kind": "giver",
+    "text": "Et juridisk løfte er en erklæring om, at du påtager dig en pligt over for en anden.",
+    "example": "Som sælger lover du at levere den aftalte cykel. Som køber lover du at betale den aftalte pris.",
+    "remember": "Spørg: Hvem påtager sig en pligt, og hvad lover personen at gøre?"
+  },
+  {
+    "id": "offer",
+    "title": "Tilbud",
+    "kind": "giver",
+    "text": "Et tilbud er et konkret forslag til en aftale på bestemte vilkår. Tilbudsgiver erklærer sig villig til at indgå aftalen, hvis tilbuddet accepteres rettidigt og på de samme vilkår.",
+    "example": "\"Du kan købe min cykel for 500 kr.\" Her kan den anden sige ja til et bestemt køb til en bestemt pris.",
+    "remember": "Et spørgsmål som \"Hvad koster cyklen?\" er en forespørgsel. Det er ikke i sig selv et ja til at købe."
+  },
+  {
+    "id": "accept-word",
+    "title": "Accept",
+    "kind": "recipient",
+    "text": "Accept betyder, at du siger ja til tilbuddet, som det er. Du accepterer altså de vilkår, der er tilbudt.",
+    "example": "Tilbud: \"Cyklen koster 500 kr.\" Accept: \"Ja, jeg køber den for 500 kr.\" Svaret \"Kun hvis jeg får den for 400 kr.\" ændrer prisen.",
+    "remember": "Et ja med ændrede vilkår er ikke en ren accept. På modellen står uoverensstemmende ved § 6 og modbud."
+  },
+  {
+    "id": "order-word",
+    "title": "Påbud",
+    "kind": "claim",
+    "text": "Et påbud er en meddelelse, som kan få retsvirkning for modtageren uden et nyt ja fra modtageren. Afsenderen skal have ret til at give meddelelsen.",
+    "example": "Du opsiger et abonnement efter aftalens opsigelsesregler. Virksomheden skal ikke først sige ja til en gyldig opsigelse.",
+    "remember": "Et påbud får som udgangspunkt virkning, når det kommer frem. Det betyder ikke, at du frit kan bestemme over andre."
+  }
+];
+  const modelConceptExtras = {
+  "tg": {
+    "example": "Den, der foreslår aftalen, er TG. Den, der får tilbuddet, er TM.",
+    "remember": "TM skifter rolle til acceptant, når TM sender accepten."
+  },
+  "acceptant": {
+    "example": "Følg billedet ned ad højre side: TM modtager først tilbuddet og sender senere accepten som acceptant.",
+    "remember": "Acceptant er navnet på den, der accepterer."
+  },
+  "symbols": {
+    "example": "En mail kan være kommet til indbakken, uden at den er åbnet. Først når den bliver læst, er der kundskab.",
+    "remember": "Modtaget og læst er to forskellige hændelser."
+  },
+  "outbound": {
+    "example": "Følg den blå pil fra TG mod TM øverst på billedet.",
+    "remember": "Frem = tilbuddet ud til modtageren."
+  },
+  "thinking": {
+    "example": "Følg den grønne pil ned ad højre side, inden TM sender accept.",
+    "remember": "Tænk = tiden hos TM; det er ikke transporttid."
+  },
+  "return": {
+    "example": "Følg den orange pil fra TM tilbage mod TG nederst på billedet.",
+    "remember": "Tilbage = acceptens vej tilbage."
+  },
+  "withdraw": {
+    "example": "Find den lilla boks og pilene til øjesymbolerne. Billedets note knytter tilbagekaldelse til kundskabsøjeblikket.",
+    "remember": "Billedet siger: Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket."
+  },
+  "fixed": {
+    "text": "Fast frist er modellens betegnelse for en fastsat acceptfrist. Den står ud for AFTL § 2.",
+    "example": "I et øveeksempel kan en fast frist være angivet som en bestemt dato.",
+    "remember": "Knyt fast frist til § 2."
+  },
+  "legal": {
+    "text": "Den legale acceptfrist vises som en kombination af tid til at sende tilbuddet frem, rimelig tid til at tænke og tid til at sende accepten tilbage.",
+    "example": "Læs de to punkter under § 3: rimelig betænkningstid samt frem- og tilbagesendelsestid.",
+    "remember": "§ 3 er ikke kun betænkningstid. Transporten i begge retninger er også nævnt."
+  },
+  "late": {
+    "text": "På billedet kobles forsinkelse med § 4 og ordene nyt tilbud.",
+    "example": "Sammenlign de to nederste linjer: forsinkelse står på den øverste, uoverensstemmende på den nederste.",
+    "remember": "Forsinkelse handler om tid. Hold § 4 adskilt fra § 6."
+  },
+  "different": {
+    "text": "Uoverensstemmende betyder, at svaret ændrer noget i forhold til tilbuddet. Billedet kobler det med § 6 og modbud.",
+    "example": "Et tilbud nævner 500 kr., men svaret foreslår 400 kr. Prisen stemmer ikke overens.",
+    "remember": "Uoverensstemmende handler om indholdet, fx en ændret pris."
+  },
+  "claim": {
+    "text": "Pligtmæssig reklamation står ved § 40. På billedet går forbindelsen fra både § 4 og § 6 til denne fælles boks.",
+    "example": "Følg de to grønne streger nederst: de samles ved boksen med § 40.",
+    "remember": "Husk forbindelsen fra begge afvigelser. Billedet opregner ikke de nærmere betingelser."
+  }
+};
+  const modelConcepts = [
+    {id:"tg",title:"TG og TM",kind:"giver",text:"TG er tilbudsgiver. TM er tilbudsmodtager."},
+    {id:"acceptant",title:"TM = acceptant",kind:"recipient",text:"TM står som acceptant, når TM sender accept."},
+    {id:"symbols",title:"Kuvert og øje",kind:"received",text:"Kuvert betyder modtaget. Øje betyder læst."},
+    ...times, ...notes
+  ].map(c => ({...c,...modelConceptExtras[c.id],category:"model"}));
+  const concepts = [...basicConcepts.map(c=>({...c,category:"concepts"})), ...modelConcepts];
+  function conceptSpeech(c) {
+    return [c.title,c.text,...(c.items||[]).map(([word,meaning])=>word+": "+meaning),c.example?"Eksempel: "+c.example:"",c.remember?"Husk: "+c.remember:""].filter(Boolean).join(" ");
+  }
+  const memories = [{
+    id: "symbols",
+    kind: "received",
+    title: "Kuvert: modtaget. Øje: læst.",
+    text: "To symboler, to betydninger. Hold dem adskilt, når du tegner modellen."
+  }, {
+    id: "route",
+    kind: "time",
+    title: "Frem. Tænk. Tilbage.",
+    text: "Fremsendelsestid. Betænkningstid. Tilbagesendelsestid. Knyt de tre navne til pilene på tavlen."
+  }, {
+    id: "numbers",
+    kind: "exception",
+    title: "2, 3, 4, 6 – og 40.",
+    text: "2: fast frist. 3: den legale acceptfrist. 4: forsinkelse. 6: uoverensstemmende. 40: pligtmæssig reklamation."
+  }, {
+    id: "five",
+    kind: "read",
+    title: "5 ting du skal kunne.",
+    list: ["Kuvert betyder modtaget. Øje betyder læst.", "De tre tidsforløb: frem, betænkning og tilbage.", "§ 2: fast frist. § 3: den legale acceptfrist.", "Tilbagekaldelse skal ske inden kundskabsøjeblikket.", "§ 4: nyt tilbud. § 6: modbud. Begge forbindes med § 40."]
+  }];
+  const teacherQuestions = [["Kan du forklare hovedforløbet?", "TG sender tilbud til TM. Hos TM følger betænkningstid. TM står som acceptant og sender accept tilbage. Nederst til venstre står bindende aftale."], ["Hvad betyder TG og TM?", "TG betyder tilbudsgiver. TM betyder tilbudsmodtager."], ["Hvad betyder kuverten og øjet?", "Kuvert betyder modtaget. Øje betyder læst."], ["Hvad hedder de tre tidsforløb?", "Fremsendelsestid, betænkningstid og tilbagesendelsestid."], ["Hvad står ved § 2 og § 3?", "§ 2: fast frist. § 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid."], ["Hvad står der om tilbagekaldelse?", notes[0].text], ["Hvad står ved § 4 og § 6?", "§ 4: forsinkelse, nyt tilbud. § 6: uoverensstemmende, modbud."], ["Hvad er § 4 og § 6 forbundet med?", "Pligtmæssig reklamation, § 40."]];
+  teacherQuestions.push(
+    ["Bliver jeg bundet, bare fordi jeg er stille?","Nej, tavshed er normalt ikke i sig selv accept. Ved stiltiende løfte kan handlingerne vise accepten, fx når du køber og betaler ved kassen uden at sige ja."],
+    ["Skal en aftale altid skrives under?","Nej, som udgangspunkt kan den også indgås mundtligt. Skrift gør det ofte lettere at bevise aftalen; visse aftaletyper har særlige formkrav."],
+    ["Kan du forklare de fire ord?","Løfte: Jeg påtager mig en pligt. Tilbud: Mit forslag til aftalen. Accept: Mit ja til forslaget. Påbud: En meddelelse med retsvirkning for modtageren, fx en gyldig opsigelse."]
+  );
+  const modelFlashcards = [["ROLLER", "Hvad betyder TG?", "Tilbudsgiver.", "giver"], ["ROLLER", "Hvad betyder TM?", "Tilbudsmodtager.", "recipient"], ["TILBUD", "Hvem sender tilbuddet?", "TG, tilbudsgiver.", "giver"], ["TILBUD", "Hvem modtager tilbuddet?", "TM, tilbudsmodtager.", "recipient"], ["SYMBOLER", "Hvad betyder kuvertsymbolet?", "Modtaget.", "received"], ["SYMBOLER", "Hvad betyder øjesymbolet?", "Læst.", "read"], ["TIDSFORLØB", "Hvad hedder strækningen fra TG til TM øverst?", "Fremsendelsestid.", "time"], ["TIDSFORLØB", "Hvad hedder det lodrette tidsforløb hos TM?", "Betænkningstid.", "time"], ["TIDSFORLØB", "Hvad hedder tidsforløbet tilbage mod TG?", "Tilbagesendelsestid.", "time"], ["ACCEPT", "Hvad kaldes TM, når TM sender accept?", "Acceptant.", "recipient"], ["ACCEPT", "Hvem sender accepten?", "TM, der står som acceptant.", "recipient"], ["AFSLUTNING", "Hvad står nederst til venstre?", "Bindende aftale.", "read"], ["FRISTER", "Hvad står ved AFTL § 2?", "Fast frist.", "time"], ["FRISTER", "Hvad står ved AFTL § 3?", "Den legale acceptfrist.", "time"], ["FRISTER", "Hvilke tider nævnes under den legale acceptfrist?", "Rimelig betænkningstid samt frem- og tilbagesendelsestid.", "time"], ["TILBAGEKALDELSE", "Hvad kan tilbagekaldes ifølge noten?", "Tilbud/accept.", "withdraw"], ["TILBAGEKALDELSE", "Hvornår skal tilbagekaldelse af tilbud/accept ske?", "Inden kundskabsøjeblikket.", "withdraw"], ["AFVIGELSER", "Hvilken paragraf står ved forsinkelse?", "§ 4.", "exception"], ["AFVIGELSER", "Hvilken note står ved forsinkelse?", "Nyt tilbud.", "exception"], ["AFVIGELSER", "Hvilken paragraf står ved uoverensstemmende?", "§ 6.", "exception"], ["AFVIGELSER", "Hvilken note står ved uoverensstemmende?", "Modbud.", "exception"], ["REKLAMATION", "Hvilken paragraf står ved pligtmæssig reklamation?", "§ 40.", "claim"], ["REKLAMATION", "Hvilke to paragraffer forbindes med pligtmæssig reklamation?", "§ 4 og § 6.", "claim"], ["RÆKKEFØLGE", "Hvad følger efter fremsendelsestiden?", "TM modtager tilbuddet.", "recipient"], ["RÆKKEFØLGE", "Hvilket hovedpunkt følger efter betænkningstiden?", "TM = acceptant, sender accept.", "recipient"], ["RÆKKEFØLGE", "Hvad følger efter TM sender accept?", "Tilbagesendelsestid tilbage mod venstre.", "time"], ["FRISTER", "Hvilken paragraf forbindes med rimelig betænkningstid?", "§ 3, den legale acceptfrist.", "time"], ["OVERBLIK", "Nævn de fire hovedpunkter i rækkefølge.", "TG sender tilbud. TM modtager tilbud. TM = acceptant, sender accept. Bindende aftale.", "giver"]].map((c, i) => ({
+    id: "board-f" + i,
+    topic: c[0],
+    question: c[1],
+    answer: c[2],
+    kind: c[3],
+    category: "model"
+  }));
+  const conceptFlashData = [
+  [
+    "Stiltiende løfte",
+    "Hvad er et stiltiende løfte?",
+    "Du kan vise accept gennem handlinger uden at sige ja højt. Tavshed alene betyder normalt ikke ja.",
+    "read"
+  ],
+  [
+    "Stiltiende løfte",
+    "Hvorfor kan et køb ske uden ord ved kassen?",
+    "Du viser gennem dine handlinger og betalingen, at du vil købe varen.",
+    "read"
+  ],
+  [
+    "Tavshed",
+    "Er det automatisk accept, hvis du ikke svarer?",
+    "Nej. At du ikke svarer, er normalt ikke i sig selv et ja.",
+    "read"
+  ],
+  [
+    "Aftaleform",
+    "Kan en mundtlig aftale være bindende?",
+    "Ja, som udgangspunkt. Det afgørende er, at parterne indgår en aftale; der er dog aftaletyper med særlige formkrav.",
+    "giver"
+  ],
+  [
+    "Aftaleform",
+    "Hvorfor er det ofte en fordel at skrive aftalen ned?",
+    "Det gør det lettere at bevise, hvad parterne aftalte.",
+    "giver"
+  ],
+  [
+    "Løfte",
+    "Hvad er et juridisk løfte?",
+    "En erklæring om, at du påtager dig en pligt over for en anden.",
+    "giver"
+  ],
+  [
+    "Tilbud",
+    "Hvad gør tilbudsgiveren?",
+    "Fremsætter et konkret forslag til en aftale på bestemte vilkår.",
+    "giver"
+  ],
+  [
+    "Accept",
+    "Hvad betyder accept?",
+    "Et ja til tilbuddet, som det er. Et svar med ændrede vilkår er ikke en ren accept.",
+    "recipient"
+  ],
+  [
+    "Påbud",
+    "Hvad er et påbud?",
+    "En meddelelse, der kan få retsvirkning for modtageren uden et nyt ja, hvis afsenderen har ret til at give den.",
+    "claim"
+  ],
+  [
+    "Påbud",
+    "Nævn et eksempel på et påbud.",
+    "En gyldig opsigelse af et abonnement efter aftalens opsigelsesregler.",
+    "claim"
+  ],
+  [
+    "Fire ord",
+    "Hvad er forskellen på tilbud og accept?",
+    "Tilbud er forslaget. Accept er et ja til det forslag på de tilbudte vilkår.",
+    "time"
+  ],
+  [
+    "Fire ord",
+    "Hvilke fire ord skal du kunne forklare?",
+    "Løfte: en pligt. Tilbud: et forslag. Accept: ja til forslaget. Påbud: en meddelelse med retsvirkning for modtageren.",
+    "time"
+  ]
+];
+  const conceptFlashcards = conceptFlashData.map((c,i)=>({id:"concept-f"+i,topic:c[0],question:c[1],answer:c[2],kind:c[3],category:"concepts"}));
+  const flashcards = [...modelFlashcards,...conceptFlashcards];
+  const flashById = new Map(flashcards.map(c => [c.id, c]));
+  const questions = [
+  {
+    "id": "m01",
+    "category": "model",
+    "kind": "giver",
+    "text": "Hvem starter med at sende tilbuddet på modellen?",
+    "options": [
+      "TG – tilbudsgiver",
+      "TM – tilbudsmodtager",
+      "TM som acceptant"
+    ],
+    "correct": 0,
+    "why": "TG står øverst til venstre og sender tilbuddet mod TM.",
+    "feedback": [
+      "Rigtigt.",
+      "TM modtager tilbuddet i den første del af forløbet.",
+      "Acceptantrollen ses senere, når TM sender accepten."
+    ],
+    "remember": "Start ved TG øverst til venstre.",
+    "region": "send"
+  },
+  {
+    "id": "m02",
+    "category": "model",
+    "kind": "recipient",
+    "text": "Hvad gør TM øverst til højre?",
+    "options": [
+      "Modtager tilbuddet",
+      "Sender tilbuddet til TG",
+      "Sender straks en reklamation"
+    ],
+    "correct": 0,
+    "why": "Tilbuddet sendes fra TG og kommer frem til TM øverst til højre.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er TG, der sender tilbuddet ud. TM sender senere accept tilbage.",
+      "Reklamationsnoten står nederst og er ikke første hændelse hos TM."
+    ],
+    "remember": "Tilbuddet går fra TG til TM.",
+    "region": "receive"
+  },
+  {
+    "id": "m03",
+    "category": "model",
+    "kind": "time",
+    "text": "Tilbuddet er på vej fra TG til TM. Hvilken tid er det?",
+    "options": [
+      "Fremsendelsestid",
+      "Betænkningstid",
+      "Tilbagesendelsestid"
+    ],
+    "correct": 0,
+    "why": "Fremsendelsestiden er tilbuddets vej ud til modtageren.",
+    "feedback": [
+      "Rigtigt.",
+      "Betænkningstiden er hos TM og er ikke tilbuddets transport.",
+      "Tilbagesendelsestiden gælder vejen tilbage med accepten."
+    ],
+    "remember": "Frem = tilbuddet ud.",
+    "region": "outbound"
+  },
+  {
+    "id": "m04",
+    "category": "model",
+    "kind": "time",
+    "text": "TM har modtaget tilbuddet, men har endnu ikke sendt accept. Hvilket tidsforløb vises her?",
+    "options": [
+      "Betænkningstid",
+      "Fremsendelsestid",
+      "Tilbagesendelsestid"
+    ],
+    "correct": 0,
+    "why": "Den lodrette grønne pil forbinder modtagelsen af tilbuddet med TM som acceptant.",
+    "feedback": [
+      "Rigtigt.",
+      "Den øverste blå pil er transporten frem til TM.",
+      "Returtransporten ligger efter afsendelsen af accepten."
+    ],
+    "remember": "Tænk = tiden hos TM.",
+    "region": "thinking"
+  },
+  {
+    "id": "m05",
+    "category": "model",
+    "kind": "recipient",
+    "text": "Hvilket hovedpunkt kommer efter betænkningstiden?",
+    "options": [
+      "TM = acceptant, sender accept",
+      "TG sender tilbud",
+      "Bindende aftale nederst til venstre"
+    ],
+    "correct": 0,
+    "why": "Følg højre side ned: efter betænkningstid står TM som acceptant og sender accept.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er startpunktet, før fremsendelsestiden.",
+      "Du skal først følge acceptens vej tilbage."
+    ],
+    "remember": "Ned til acceptanten, så tilbage mod venstre.",
+    "region": "accept"
+  },
+  {
+    "id": "m06",
+    "category": "model",
+    "kind": "time",
+    "text": "Accepten sendes fra TM tilbage mod TG. Hvilken tid er det?",
+    "options": [
+      "Tilbagesendelsestid",
+      "Fremsendelsestid",
+      "Betænkningstid"
+    ],
+    "correct": 0,
+    "why": "Den nederste orange pil viser acceptens vej tilbage.",
+    "feedback": [
+      "Rigtigt.",
+      "Fremsendelsestiden er tilbuddets vej ud.",
+      "Betænkningstiden ligger hos TM før afsendelsen af accepten."
+    ],
+    "remember": "Tilbage = accepten hjem.",
+    "region": "return"
+  },
+  {
+    "id": "m07",
+    "category": "model",
+    "kind": "read",
+    "text": "Hvad står ved modellens afslutning nederst til venstre?",
+    "options": [
+      "Bindende aftale",
+      "TM sender accept",
+      "Fast frist"
+    ],
+    "correct": 0,
+    "why": "Den nederste venstre cirkel er mærket bindende aftale og har kuvert- og øjesymbol.",
+    "feedback": [
+      "Rigtigt.",
+      "Det står nederst til højre, hvor returforløbet begynder.",
+      "Fast frist står i noten ved § 2 til højre."
+    ],
+    "remember": "Følg returpilen til bindende aftale.",
+    "region": "binding"
+  },
+  {
+    "id": "m08",
+    "category": "model",
+    "kind": "received",
+    "text": "En mail ligger i indbakken, men er ikke åbnet. Hvilket symbol passer til det?",
+    "options": [
+      "Kuverten – modtaget",
+      "Øjet – læst",
+      "Betænkningstidspilen"
+    ],
+    "correct": 0,
+    "why": "Kuverten viser, at meddelelsen er modtaget. Det siger ikke i sig selv, at den er læst.",
+    "feedback": [
+      "Rigtigt.",
+      "Øjet bruges om læsning; her er mailen endnu ikke åbnet.",
+      "Pilen viser et tidsforløb, ikke selve modtagelsessymbolet."
+    ],
+    "remember": "Modtaget er ikke det samme som læst.",
+    "region": "receive"
+  },
+  {
+    "id": "m09",
+    "category": "model",
+    "kind": "read",
+    "text": "Modtageren åbner og læser meddelelsen. Hvilket symbol passer?",
+    "options": [
+      "Øjet – læst",
+      "Kuverten – modtaget",
+      "Den orange returpil"
+    ],
+    "correct": 0,
+    "why": "Øjet markerer kundskab: meddelelsen er læst.",
+    "feedback": [
+      "Rigtigt.",
+      "Kuverten fortæller kun, at meddelelsen er kommet frem.",
+      "Returpilen viser transport af accepten, ikke læsning."
+    ],
+    "remember": "Øje = læst.",
+    "region": "receive"
+  },
+  {
+    "id": "m10",
+    "category": "model",
+    "kind": "received",
+    "text": "Hvilken forskel skal du kunne forklare mellem kuvert og øje?",
+    "options": [
+      "Kuvert er modtaget; øje er læst",
+      "Begge betyder læst",
+      "Kuvert er accept; øje er et nyt tilbud"
+    ],
+    "correct": 0,
+    "why": "De to symboler skelner mellem fremkomst og læsning.",
+    "feedback": [
+      "Rigtigt.",
+      "Så forsvinder forskellen mellem, at en besked ligger der, og at den bliver læst.",
+      "Symbolerne viser modtaget/læst, ikke disse to aftaletyper."
+    ],
+    "remember": "Først kan beskeden være modtaget, senere læst.",
+    "region": "receive"
+  },
+  {
+    "id": "m11",
+    "category": "model",
+    "kind": "recipient",
+    "text": "Hvad betyder betegnelsen acceptant på billedet?",
+    "options": [
+      "Den, der accepterer tilbuddet",
+      "Den, der først sendte tilbuddet",
+      "Navnet på fremsendelsestiden"
+    ],
+    "correct": 0,
+    "why": "TM betegnes acceptant ved afsendelsen af accepten.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er TG, tilbudsgiveren.",
+      "Acceptant er en rolle, ikke et tidsrum."
+    ],
+    "remember": "TM bliver vist som acceptant.",
+    "region": "accept"
+  },
+  {
+    "id": "m12",
+    "category": "model",
+    "kind": "time",
+    "text": "Hvilken kombination svarer til modellens tre tidsforløb i rækkefølge?",
+    "options": [
+      "Fremsendelsestid → betænkningstid → tilbagesendelsestid",
+      "Betænkningstid → tilbagesendelsestid → fremsendelsestid",
+      "Tilbagesendelsestid → fremsendelsestid → betænkningstid"
+    ],
+    "correct": 0,
+    "why": "Tilbuddet skal først frem, så vises tiden hos TM, og derefter acceptens vej tilbage.",
+    "feedback": [
+      "Rigtigt.",
+      "Den rækkefølge springer tilbuddets vej ud over i begyndelsen.",
+      "Returtransporten kan ikke være startpunktet i det viste forløb."
+    ],
+    "remember": "Frem. Tænk. Tilbage.",
+    "region": "all"
+  },
+  {
+    "id": "m13",
+    "category": "model",
+    "kind": "time",
+    "text": "Hvad er § 2 koblet sammen med på billedet?",
+    "options": [
+      "Fast frist",
+      "Den legale acceptfrist",
+      "Forsinkelse"
+    ],
+    "correct": 0,
+    "why": "§ 2 står lige ved teksten fast frist.",
+    "feedback": [
+      "Rigtigt.",
+      "Den står ved § 3, ikke § 2.",
+      "Den nederste forsinkelsesnote er knyttet til § 4."
+    ],
+    "remember": "2 = fast frist.",
+    "region": "fixed"
+  },
+  {
+    "id": "m14",
+    "category": "model",
+    "kind": "time",
+    "text": "Hvad er § 3 koblet sammen med på billedet?",
+    "options": [
+      "Den legale acceptfrist",
+      "Fast frist",
+      "Pligtmæssig reklamation"
+    ],
+    "correct": 0,
+    "why": "Under § 3 står både rimelig betænkningstid og transporttiderne.",
+    "feedback": [
+      "Rigtigt.",
+      "Fast frist er placeret ved § 2.",
+      "Det står i boksen med § 40 nederst."
+    ],
+    "remember": "3 = den legale acceptfrist.",
+    "region": "legal"
+  },
+  {
+    "id": "m15",
+    "category": "model",
+    "kind": "time",
+    "text": "Er betænkningstid alene hele den legale acceptfrist på billedet?",
+    "options": [
+      "Nej, frem- og tilbagesendelsestid er også nævnt",
+      "Ja, transport er ikke nævnt",
+      "Nej, kun tilbagesendelsestiden tæller"
+    ],
+    "correct": 0,
+    "why": "Under § 3 skal du huske rimelig betænkningstid sammen med transporten begge veje.",
+    "feedback": [
+      "Rigtigt.",
+      "Det andet punkt under § 3 nævner netop frem- og tilbagesendelsestid.",
+      "Så mangler både fremsendelsestid og rimelig betænkningstid fra billedets opremsning."
+    ],
+    "remember": "§ 3: frem + rimelig tænkning + tilbage.",
+    "region": "legal"
+  },
+  {
+    "id": "m16",
+    "category": "model",
+    "kind": "time",
+    "text": "Du forklarer § 3 og nævner frem- og tilbagesendelsestid. Hvad mangler?",
+    "options": [
+      "Rimelig betænkningstid",
+      "Fast frist",
+      "Et nyt tilbud"
+    ],
+    "correct": 0,
+    "why": "Modellen nævner også tiden til at tænke hos TM.",
+    "feedback": [
+      "Rigtigt.",
+      "Fast frist hører til § 2 og erstatter ikke punktet under § 3.",
+      "Det står ved forsinkelse i noten om § 4."
+    ],
+    "remember": "Husk begge punkter under § 3.",
+    "region": "legal"
+  },
+  {
+    "id": "m17",
+    "category": "model",
+    "kind": "withdraw",
+    "text": "Hvilke meddelelser nævner den lilla tilbagekaldelsesboks?",
+    "options": [
+      "Tilbud og accept",
+      "Kun tilbud",
+      "Kun reklamation"
+    ],
+    "correct": 0,
+    "why": "Boksen siger udtrykkeligt tilbagekaldelse af tilbud/accept.",
+    "feedback": [
+      "Rigtigt.",
+      "Så mangler accept, som også står i boksen.",
+      "Boksen handler om tilbud og accept; reklamation er en anden note."
+    ],
+    "remember": "Boksen omfatter både ud- og returforløbet.",
+    "region": "withdraw"
+  },
+  {
+    "id": "m18",
+    "category": "model",
+    "kind": "withdraw",
+    "text": "Hvilket tidspunkt fremhæver tilbagekaldelsesnoten på billedet?",
+    "options": [
+      "Inden kundskabsøjeblikket",
+      "Efter kundskabsøjeblikket",
+      "Når man engang får lyst"
+    ],
+    "correct": 0,
+    "why": "Billedets tekst knytter tilbagekaldelse af tilbud/accept til tidspunktet før kundskab.",
+    "feedback": [
+      "Rigtigt.",
+      "Boksen siger inden, ikke efter.",
+      "Noten har netop en tidsmæssig grænse."
+    ],
+    "remember": "Find ordet inden og pilene til øjnene.",
+    "region": "withdraw"
+  },
+  {
+    "id": "m19",
+    "category": "model",
+    "kind": "exception",
+    "text": "Hvilken paragraf skal du forbinde med forsinkelse?",
+    "options": [
+      "§ 4",
+      "§ 6",
+      "§ 40"
+    ],
+    "correct": 0,
+    "why": "Forsinkelse og nyt tilbud står sammen ved § 4 nederst.",
+    "feedback": [
+      "Rigtigt.",
+      "§ 6 er knyttet til uoverensstemmende og modbud.",
+      "§ 40 er den fælles reklamationsnote, ikke nummeret ved forsinkelse."
+    ],
+    "remember": "Forsinkelse = tid = § 4.",
+    "region": "late"
+  },
+  {
+    "id": "m20",
+    "category": "model",
+    "kind": "exception",
+    "text": "Hvilke ord står i parentes ved forsinkelse?",
+    "options": [
+      "Nyt tilbud",
+      "Modbud",
+      "Rimelig betænkningstid"
+    ],
+    "correct": 0,
+    "why": "Det er den note, billedet viser ved § 4.",
+    "feedback": [
+      "Rigtigt.",
+      "Modbud er noten ved uoverensstemmende, § 6.",
+      "Den formulering står under § 3."
+    ],
+    "remember": "4: forsinkelse – nyt tilbud.",
+    "region": "late"
+  },
+  {
+    "id": "m21",
+    "category": "model",
+    "kind": "exception",
+    "text": "Svaret foreslår en anden pris end tilbuddet. Hvilken note passer til forskellen i indhold?",
+    "options": [
+      "Uoverensstemmende – § 6 – modbud",
+      "Forsinkelse – § 4",
+      "Fast frist – § 2"
+    ],
+    "correct": 0,
+    "why": "En anden pris ændrer tilbuddets vilkår. Billedets note om uoverensstemmende passer til forskellen i indhold.",
+    "feedback": [
+      "Rigtigt.",
+      "En ændret pris handler om indholdet. Den oplyser ikke i sig selv noget om tid.",
+      "En fast frist handler om tidspunktet for accept, ikke en ændring af prisen."
+    ],
+    "remember": "Andet indhold = uoverensstemmende.",
+    "region": "different"
+  },
+  {
+    "id": "m22",
+    "category": "model",
+    "kind": "exception",
+    "text": "Hvilken forskel hjælper dig med at huske § 4 og § 6?",
+    "options": [
+      "§ 4 handler om forsinkelse; § 6 om uoverensstemmende indhold",
+      "Begge handler kun om tiden",
+      "§ 4 er modbud; § 6 er fast frist"
+    ],
+    "correct": 0,
+    "why": "De to nederste linjer skelner mellem tid og indhold.",
+    "feedback": [
+      "Rigtigt.",
+      "§ 6 er knyttet til uoverensstemmende og modbud.",
+      "Modbud står ved § 6; fast frist står ved § 2."
+    ],
+    "remember": "4 = tid. 6 = indhold.",
+    "region": "exceptions"
+  },
+  {
+    "id": "m23",
+    "category": "model",
+    "kind": "claim",
+    "text": "Hvilke to noter forbindes med pligtmæssig reklamation, § 40?",
+    "options": [
+      "Både forsinkelse (§ 4) og uoverensstemmende (§ 6)",
+      "Kun fast frist (§ 2)",
+      "Kun forsinkelse (§ 4)"
+    ],
+    "correct": 0,
+    "why": "De to grønne forbindelser samles i den fælles boks med § 40.",
+    "feedback": [
+      "Rigtigt.",
+      "§ 2 er ikke den note, der forbindes med boksen nederst.",
+      "Du skal også have forbindelsen fra § 6 med."
+    ],
+    "remember": "To forbindelser, én fælles boks.",
+    "region": "claim"
+  },
+  {
+    "id": "m24",
+    "category": "model",
+    "kind": "claim",
+    "text": "Du har tegnet § 4 og § 6, men mangler den fælles boks nederst til højre. Hvad skal du tilføje?",
+    "options": [
+      "Pligtmæssig reklamation – § 40",
+      "TG sender tilbud",
+      "Den legale acceptfrist – § 3"
+    ],
+    "correct": 0,
+    "why": "Boksen afslutter de to forbindelser fra forsinkelse og uoverensstemmende.",
+    "feedback": [
+      "Rigtigt.",
+      "TG hører til startpunktet øverst til venstre.",
+      "§ 3 står til højre i fristafsnittet, ikke i den nederste fælles boks."
+    ],
+    "remember": "Slut sidens noter med forbindelsen til § 40.",
+    "region": "claim"
+  },
+  {
+    "id": "b01",
+    "category": "concepts",
+    "kind": "read",
+    "text": "Hvad er den bedste forklaring på et stiltiende løfte?",
+    "options": [
+      "Accept kan vises gennem handlinger uden et ja højt",
+      "Man er bundet, så snart man er stille",
+      "Man må aldrig tale, når man indgår en aftale"
+    ],
+    "correct": 0,
+    "why": "Det er adfærden, der viser viljen til at indgå aftalen.",
+    "feedback": [
+      "Rigtigt.",
+      "Tavshed alene er normalt ikke et ja. Der skal være noget, som viser accepten.",
+      "Stiltiende beskriver én måde at vise accept på; man må selvfølgelig også tale."
+    ],
+    "remember": "Uden ord kan stadig være med en tydelig handling.",
+    "example": "Du betaler for en vare ved kassen uden at sige ja."
+  },
+  {
+    "id": "b02",
+    "category": "concepts",
+    "kind": "read",
+    "text": "Du køber og betaler for en bolle uden at sige noget. Hvorfor kan der alligevel være en aftale?",
+    "options": [
+      "Dine handlinger viser, at du vil købe",
+      "Fordi alle stille mennesker er bundet",
+      "Fordi butikken frit kan binde dig"
+    ],
+    "correct": 0,
+    "why": "Du udtrykker accept ved det, du gør.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er din købshandling og betaling, ikke stilheden, der viser accept.",
+      "Butikken kan ikke alene bestemme, at enhver tavshed er et køb."
+    ],
+    "remember": "Se på handlingen, ikke kun på ordene."
+  },
+  {
+    "id": "b03",
+    "category": "concepts",
+    "kind": "read",
+    "text": "En sælger skriver: \"Hvis du ikke svarer, har du sagt ja.\" Du foretager dig intet. Er tavsheden normalt nok?",
+    "options": [
+      "Nej, manglende svar er normalt ikke i sig selv accept",
+      "Ja, sælgerens besked er nok",
+      "Ja, men kun hvis beskeden er skriftlig"
+    ],
+    "correct": 0,
+    "why": "Man kan normalt ikke gøre en anden til køber alene ved at erklære personens tavshed for et ja.",
+    "feedback": [
+      "Rigtigt.",
+      "Sælgerens eget udsagn skaber ikke i sig selv din accept.",
+      "Skrift ændrer ikke manglende accept til et ja."
+    ],
+    "remember": "Stiltiende adfærd og ren passivitet skal holdes adskilt."
+  },
+  {
+    "id": "b04",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Kan en aftale være bindende, selv om den kun er mundtlig?",
+    "options": [
+      "Ja, som udgangspunkt",
+      "Nej, der skal altid være en underskrift",
+      "Nej, kun en mail kan være bindende"
+    ],
+    "correct": 0,
+    "why": "Parter kan indgå en aftale ved tale. Der kan dog gælde særlige formkrav for bestemte aftaler.",
+    "feedback": [
+      "Rigtigt.",
+      "En underskrift er ikke et generelt krav til alle aftaler.",
+      "Aftaler er ikke generelt begrænset til mail eller andre skriftlige former."
+    ],
+    "remember": "Aftalens indhold og aftaleindgåelsen er afgørende; papir er ikke altid et krav."
+  },
+  {
+    "id": "b05",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Hvorfor er det ofte klogt at skrive en aftale ned?",
+    "options": [
+      "Det gør det lettere at bevise, hvad der er aftalt",
+      "Fordi enhver mundtlig aftale er ugyldig",
+      "Fordi enhver skrevet besked automatisk er en aftale"
+    ],
+    "correct": 0,
+    "why": "Skrift kan dokumentere fx pris og andre vilkår.",
+    "feedback": [
+      "Rigtigt.",
+      "Mundtlige aftaler kan være bindende, men beviset kan være sværere.",
+      "En besked kan også være et spørgsmål eller en forhandling."
+    ],
+    "remember": "Bindende og let at bevise er to forskellige ting."
+  },
+  {
+    "id": "b06",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "En køber spørger på skrift: \"Hvad koster cyklen?\" Er det i sig selv en købsaftale?",
+    "options": [
+      "Nej, det er en forespørgsel",
+      "Ja, fordi det er skrevet ned",
+      "Ja, fordi ordet cykel er nævnt"
+    ],
+    "correct": 0,
+    "why": "At spørge om prisen viser ikke i sig selv, at køberen accepterer et køb.",
+    "feedback": [
+      "Rigtigt.",
+      "Skriftlig form gør ikke enhver besked til en aftale.",
+      "Man kan tale om en vare uden at forpligte sig til at købe den."
+    ],
+    "remember": "Spørgsmål er ikke det samme som accept."
+  },
+  {
+    "id": "b07",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Hvad er et juridisk løfte?",
+    "options": [
+      "En erklæring om, at man påtager sig en pligt",
+      "Kun et spørgsmål om, hvad noget koster",
+      "Et navn på transporttiden"
+    ],
+    "correct": 0,
+    "why": "Løftet handler om, at afgiveren forpligter sig over for en anden.",
+    "feedback": [
+      "Rigtigt.",
+      "Et spørgsmål er ikke i sig selv en påtaget pligt.",
+      "Løfte er et begreb om en erklæring, ikke et tidsforløb."
+    ],
+    "remember": "Løfte: Hvad forpligter jeg mig til?"
+  },
+  {
+    "id": "b08",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Hvilken besked er et konkret tilbud i cykeleksemplet?",
+    "options": [
+      "\"Du kan købe min cykel for 500 kr.\"",
+      "\"Hvad koster cyklen?\"",
+      "\"Jeg kigger måske på cykler.\""
+    ],
+    "correct": 0,
+    "why": "Beskeden fremsætter et bestemt forslag, som den anden kan acceptere.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er et spørgsmål om prisen, ikke et salgsforslag.",
+      "Det udtrykker interesse, men ikke et konkret forslag til en aftale."
+    ],
+    "remember": "Tilbud = et bestemt forslag på bestemte vilkår."
+  },
+  {
+    "id": "b09",
+    "category": "concepts",
+    "kind": "recipient",
+    "text": "Tilbuddet lyder på en cykel til 500 kr. Hvilket svar er en ren accept?",
+    "options": [
+      "\"Ja, jeg køber den for 500 kr.\"",
+      "\"Ja, hvis du sænker prisen til 400 kr.\"",
+      "\"Hvilken farve har den?\""
+    ],
+    "correct": 0,
+    "why": "Svaret siger ja til den tilbudte pris.",
+    "feedback": [
+      "Rigtigt.",
+      "Prisen ændres. Det er derfor ikke et ja til tilbuddet, som det er.",
+      "Det er et spørgsmål, ikke et ja til købet."
+    ],
+    "remember": "Accept = ja til de tilbudte vilkår."
+  },
+  {
+    "id": "b10",
+    "category": "concepts",
+    "kind": "recipient",
+    "text": "Hvad er forskellen på tilbud og accept?",
+    "options": [
+      "Tilbud er forslaget; accept er et ja til forslaget",
+      "De betyder præcis det samme",
+      "Accept er kun et andet ord for en kvittering"
+    ],
+    "correct": 0,
+    "why": "Begreberne beskriver hver sin del af aftaleindgåelsen.",
+    "feedback": [
+      "Rigtigt.",
+      "Så overser du forskellen på at foreslå og at sige ja.",
+      "Accept handler om tilslutning til tilbuddet, ikke blot om en kvittering."
+    ],
+    "remember": "Forslag → ja til forslaget."
+  },
+  {
+    "id": "b11",
+    "category": "concepts",
+    "kind": "claim",
+    "text": "Hvad er et påbud i aftaleretten?",
+    "options": [
+      "En meddelelse, der kan få retsvirkning for modtageren uden et nyt ja",
+      "En besked, som altid kræver modtagerens nye accept",
+      "En ret til at bestemme alt over enhver"
+    ],
+    "correct": 0,
+    "why": "Afsenderen skal have ret til at give meddelelsen; et gyldigt påbud afhænger ikke af et nyt ja fra modtageren.",
+    "feedback": [
+      "Rigtigt.",
+      "Det ville overse, at et gyldigt påbud netop kan virke uden et nyt ja.",
+      "Et påbud kræver et retligt grundlag; ordet giver ikke ubegrænset magt."
+    ],
+    "remember": "Påbud er en aftaleretlig meddelelse, ikke fri magt over andre."
+  },
+  {
+    "id": "b12",
+    "category": "concepts",
+    "kind": "claim",
+    "text": "Hvilket eksempel illustrerer et påbud?",
+    "options": [
+      "En gyldig opsigelse efter et abonnements opsigelsesregler",
+      "En forespørgsel om butikkens åbningstid",
+      "Et forslag om at købe en cykel"
+    ],
+    "correct": 0,
+    "why": "En sådan opsigelse kan få betydning uden, at virksomheden først accepterer den.",
+    "feedback": [
+      "Rigtigt.",
+      "Det er blot en forespørgsel, ikke en meddelelse med denne retsvirkning.",
+      "Det er et tilbud, som den anden kan tage stilling til."
+    ],
+    "remember": "Opsigelse er et eksempel, når reglerne for den er opfyldt."
+  },
+  {
+    "id": "b13",
+    "category": "concepts",
+    "kind": "claim",
+    "text": "Hvornår får et påbud som udgangspunkt virkning?",
+    "options": [
+      "Når det er kommet frem til modtageren",
+      "Kun når modtageren siger ja",
+      "Så snart afsenderen tænker på det"
+    ],
+    "correct": 0,
+    "why": "For påbud er fremkomsten det centrale tidspunkt.",
+    "feedback": [
+      "Rigtigt.",
+      "Et gyldigt påbud kræver ikke et nyt ja fra modtageren.",
+      "En uudtrykt tanke er ikke en meddelelse, der er kommet frem."
+    ],
+    "remember": "Påbud → kommet frem."
+  },
+  {
+    "id": "b14",
+    "category": "concepts",
+    "kind": "time",
+    "text": "Hvilken kobling mellem de fire ord er rigtig?",
+    "options": [
+      "Løfte: pligt · tilbud: forslag · accept: ja · påbud: meddelelse med retsvirkning",
+      "Løfte: spørgsmål · tilbud: ja · accept: transport",
+      "Alle fire ord betyder blot aftale"
+    ],
+    "correct": 0,
+    "why": "Hvert ord hjælper dig med at beskrive en bestemt handling eller erklæring.",
+    "feedback": [
+      "Rigtigt.",
+      "Her er ordenes forskellige funktioner byttet rundt.",
+      "Du skal kunne skelne ordene og forklare deres funktioner."
+    ],
+    "remember": "Forklar ordene – nøjes ikke med at remse dem op."
+  },
+  {
+    "id": "b15",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Sælger lover at levere cyklen; køber lover at betale. Hvad viser det?",
+    "options": [
+      "Begge kan påtage sig pligter i aftalen",
+      "Kun sælgeren kan afgive et løfte",
+      "Ingen behøver at gøre det aftalte"
+    ],
+    "correct": 0,
+    "why": "Et løfte handler om, hvad den pågældende part forpligter sig til.",
+    "feedback": [
+      "Rigtigt.",
+      "Køberen kan også love at opfylde sin del, fx at betale.",
+      "At påtage sig en pligt er netop mere end løs snak."
+    ],
+    "remember": "Spørg efter hver parts pligt."
+  },
+  {
+    "id": "b16",
+    "category": "concepts",
+    "kind": "giver",
+    "text": "Hvilken forklaring undgår misforståelsen om mundtlige aftaler?",
+    "options": [
+      "De kan være bindende, selv om de kan være sværere at bevise",
+      "De kan aldrig bruges, fordi de ikke kan ses",
+      "Alt, der bliver sagt, er automatisk en aftale"
+    ],
+    "correct": 0,
+    "why": "Gyldig aftale og dokumentation er forskellige spørgsmål.",
+    "feedback": [
+      "Rigtigt.",
+      "At en aftale ikke er skrevet, gør den ikke automatisk ugyldig.",
+      "En samtale kan også være spørgsmål, overvejelser eller forhandling."
+    ],
+    "remember": "Mundtligt betyder ikke automatisk ubindende."
+  },
+  {
+    "id": "b17",
+    "category": "concepts",
+    "kind": "recipient",
+    "text": "Sælger tilbyder 500 kr. Køber svarer 400 kr. Hvorfor er det ikke en ren accept?",
+    "options": [
+      "Svaret ændrer et vilkår, nemlig prisen",
+      "Fordi svaret er mundtligt",
+      "Fordi accept altid skal være en underskrift"
+    ],
+    "correct": 0,
+    "why": "Køberen har foreslået noget andet end tilbuddet.",
+    "feedback": [
+      "Rigtigt.",
+      "Mundtlig form forhindrer ikke i sig selv accept.",
+      "Accept er ikke generelt begrænset til en underskrift."
+    ],
+    "remember": "Se på vilkårene, ikke kun formen."
+  },
+  {
+    "id": "b18",
+    "category": "concepts",
+    "kind": "read",
+    "text": "Hvad skal du først se efter, når nogen siger: \"Der blev ikke sagt noget\"?",
+    "options": [
+      "Om handlingerne alligevel tydeligt viste accept",
+      "Kun om personen var helt stille",
+      "Om der fandtes en printer"
+    ],
+    "correct": 0,
+    "why": "Fravær af ord fortæller ikke alene, om en aftale blev indgået.",
+    "feedback": [
+      "Rigtigt.",
+      "Stilheden alene afgør ikke, om adfærden udtrykte accept.",
+      "En printer siger ikke noget om parternes handlinger eller enighed."
+    ],
+    "remember": "Se efter ord, handlinger og det, parterne blev enige om."
+  }
+];
+  const overviewText = "Tilbudsgiver sender tilbuddet. Tilbudsmodtager modtager det og sender senere en accept tilbage som acceptant. Nederst til venstre på tavlen står bindende aftale. Tavlen viser også tidsforløb, frister, tilbagekaldelse og afvigelser.";
+  function el(tag, className = "", text) {
+    const n = document.createElement(tag);
+    n.className = className;
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+  function shuffled(a) {
+    const out = [...a];
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+  function iconMarkup(kind) {
+    return '<svg class="semantic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[kind] || ICONS.speaker) + '</svg>';
+  }
+  function iconNode(kind) {
+    const n = el("span", "semantic-symbol");
+    n.innerHTML = iconMarkup(kind);
+    n.setAttribute("aria-hidden", "true");
+    return n;
+  }
+  function tag(kind) {
+    const n = el("span", "semantic-tag");
+    n.dataset.kind = kind;
+    n.append(iconNode(kind), document.createTextNode(TYPES[kind].label));
+    return n;
+  }
+  function audioButton(title, callback) {
+    const b = el("button", "sound-button");
+    b.type = "button";
+    b.setAttribute("aria-label", "Læs " + title + " op");
+    b.innerHTML = iconMarkup("speaker");
+    b.addEventListener("click", callback);
+    return b;
+  }
+  function escapeXml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&apos;"
+    })[c]);
+  }
+  let toastTimer;
+  function toast(message) {
+    $("#toast").textContent = message;
+    $("#toast").hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $("#toast").hidden = true, 4200);
+  }
 
-  self.addEventListener("install", (event) => {
-    event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(offlineFiles)).then(() => self.skipWaiting()));
-  });
-  self.addEventListener("activate", (event) => {
-    event.waitUntil(caches.keys().then((keys) => Promise.all(keys
-      .filter((key) => key.startsWith(cachePrefix) && key !== cacheName)
-      .map((key) => caches.delete(key)))).then(() => self.clients.claim()));
-  });
-  self.addEventListener("fetch", (event) => {
-    const url = new URL(event.request.url);
-    if (event.request.method !== "GET" || url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
-    // Netværk først: ændrede filer hentes online; gemte filer bruges offline.
-    event.respondWith((async () => {
-      const cache = await caches.open(cacheName);
-      try {
-        const response = await fetch(event.request);
-        if (response.ok && response.type === "basic") await cache.put(event.request, response.clone());
-        return response;
-      } catch {
-        const cached = await cache.match(event.request);
-        if (cached) return cached;
-        if (event.request.mode === "navigate") {
-          const page = await cache.match(new URL("./index.html", self.registration.scope).href);
-          if (page) return page;
-        }
-        return Response.error();
+  // Nye opgaver får ny fremgang. Den gamle versions data overskrives ikke.
+  const state = {
+    version: MODEL_VERSION,
+    theme: "system",
+    practiceScope: "both",
+    known: [],
+    difficulties: {},
+    results: [],
+    best: {
+      build: 0,
+      draw: 0
+    }
+  };
+  let storageWarning = false;
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    if (saved && saved.version === MODEL_VERSION) {
+      if (["system", "light", "dark"].includes(saved.theme)) state.theme = saved.theme;
+      if (["model","concepts","both"].includes(saved.practiceScope)) state.practiceScope = saved.practiceScope;
+      if (Array.isArray(saved.known)) state.known = saved.known.filter(id => flashById.has(id));
+      if (saved.difficulties && typeof saved.difficulties === "object") for (const c of flashcards) {
+        const v = saved.difficulties[c.id];
+        if (Number.isFinite(v)) state.difficulties[c.id] = Math.min(6, Math.max(1, v));
       }
-    })());
-  });
-} else {
-  (() => {
-    const $ = (selector, root = document) => root.querySelector(selector);
-    const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const systemTheme = window.matchMedia("(prefers-color-scheme: dark)");
-    const STORAGE_KEY = "aftalemodellen.v1";
-
-    function element(tag, className, text) {
-      const node = document.createElement(tag);
-      if (className) node.className = className;
-      if (text !== undefined) node.textContent = text;
-      return node;
-    }
-    function shuffle(items) {
-      const result = [...items];
-      for (let i = result.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [result[i], result[j]] = [result[j], result[i]];
+      if (Array.isArray(saved.results)) state.results = saved.results.filter(r => r && r.version === MODEL_VERSION && ["build", "draw"].includes(r.mode) && Number.isInteger(r.score) && r.score >= 0 && r.score <= 100 && Number.isFinite(r.time)).slice(-20);
+      for (const r of state.results) state.best[r.mode] = Math.max(state.best[r.mode], r.score);
+      if (saved.best) for (const k of ["build", "draw"]) {
+        if (Number.isInteger(saved.best[k]) && saved.best[k] >= 0 && saved.best[k] <= 100) state.best[k] = Math.max(state.best[k], saved.best[k]);
       }
-      return result;
+    } else {
+      const old = JSON.parse(localStorage.getItem("aftalemodellen.v1") || "null");
+      if (old && ["system", "light", "dark"].includes(old.theme)) state.theme = old.theme;
     }
-
-    // Faste betydninger. Samme farve og samme vektorikon bruges overalt.
-    const TYPES = {
-      giver: { label: "Tilbudsgiver", hint: "Sender tilbuddet", ink: "#1d4ed8", soft: "#eaf0ff" },
-      recipient: { label: "Tilbudsmodtager", hint: "Modtager tilbuddet og sender accept", ink: "#b45309", soft: "#fff1e4" },
-      received: { label: "Brevsprække", hint: "Modtaget", ink: "#7c3aed", soft: "#f2ebff" },
-      read: { label: "Kundskab", hint: "Læst", ink: "#16724c", soft: "#e7f5ed" },
-      time: { label: "Tid / frist", hint: "Betænkningstid og acceptfrist", ink: "#805600", soft: "#fff5cf" },
-      declarative: { label: "Deklaratorisk", hint: "Fravigelig", ink: "#0b6b73", soft: "#e2f5f5" },
-      mandatory: { label: "Præceptiv", hint: "Ufravigelig", ink: "#b42335", soft: "#fff0f2" },
-      protective: { label: "Beskyttelsespræceptiv", hint: "Kun til den svage parts fordel", ink: "#9b2477", soft: "#fcebf7" }
-    };
-    const ICONS = {
-      giver: '<path d="M4 14v6h16v-6M12 16V3m-4 4 4-4 4 4"/>',
-      recipient: '<path d="M4 14v6h16v-6M12 3v12m-4-4 4 4 4-4"/>',
-      received: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>',
-      read: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
-      time: '<path d="M5 3h14M5 21h14M7 3v4l10 10v4M17 3v4L7 17v4M9 7h6m-6 10h6"/>',
-      declarative: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M9 10V7a4 4 0 0 1 7-2M12 14v3"/>',
-      mandatory: '<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>',
-      protective: '<path d="M12 2 21 6v6c0 5-9 10-9 10S3 17 3 12V6l9-4Z"/><path d="m8 12 3 3 5-6"/>',
-      speaker: '<path d="M3 9v6h4l5 4V5L7 9H3Zm13-1a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>'
-    };
-    function iconMarkup(kind) {
-      return '<svg class="semantic-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICONS[kind] || ICONS.speaker) + '</svg>';
-    }
-    function iconNode(kind) {
-      const span = element("span", "semantic-symbol"); span.innerHTML = iconMarkup(kind); span.setAttribute("aria-hidden", "true"); return span;
-    }
-    function semanticTag(kind, short = false) {
-      const tag = element("span", "semantic-tag"); tag.dataset.kind = kind;
-      tag.append(iconNode(kind), element("span", "", TYPES[kind].label + (short ? "" : " · " + TYPES[kind].hint)));
-      return tag;
-    }
-    function semanticKinds(text) {
-      const value = text.toLowerCase(); const found = [];
-      if (/tilbudsgiver/.test(value)) found.push("giver");
-      if (/tilbudsmodtager|modtageren/.test(value)) found.push("recipient");
-      if (/brevsprække|modtaget|kommer frem/.test(value)) found.push("received");
-      if (/kundskab|læst|læser/.test(value)) found.push("read");
-      if (/betænkning|acceptfrist/.test(value)) found.push("time");
-      if (/deklaratorisk|(^|\s)fravigelig/.test(value)) found.push("declarative");
-      if (/(^|\s)præceptiv|ufravigelig/.test(value)) found.push("mandatory");
-      if (/beskyttelsespræceptiv|svage part/.test(value)) found.push("protective");
-      return [...new Set(found)];
-    }
-    function updateSemanticTags(container, text) {
-      container.replaceChildren(...semanticKinds(text).map((kind) => semanticTag(kind, true)));
-    }
-    function kindOfStep(index) { return ["giver", "received", "read", "time", "recipient", "received", "read"][index]; }
-    function soundButton(label, action) {
-      const button = element("button", "sound-button"); button.type = "button";
-      button.setAttribute("aria-label", label); button.title = label; button.innerHTML = iconMarkup("speaker"); button.addEventListener("click", action);
-      return button;
-    }
-    let studyToolsReady = false;
-
-    // Én fælles model er kilde til tidslinje, facit, byggekort og tjekliste.
-    const steps = [
-      { id: "tilbud", title: "Tilbud", short: "Tilbud sendes", buildLabel: "Tilbudsgiver sender sit tilbud", description: "Tilbudsgiver sender et tilbud til tilbudsmodtager.", type: "action", lane: "left", direction: "right", symbol: "↗", category: "Tilbud", binding: "Tilbuddet er sendt. Følg det frem til modtageren.", checklist: "Tilbudsgiver sender et tilbud." },
-      { id: "tilbud-modtaget", title: "Brevsprækkeøjeblikket", short: "Tilbud modtaget", buildLabel: "Tilbuddet kommer frem til modtageren", description: "Tilbuddet er kommet frem til modtagerens indbakke.", type: "received", lane: "right", symbol: "↓", category: "Modtaget", binding: "Brevsprække = modtaget. Tilbuddet er endnu ikke læst.", checklist: "Tilbuddet kommer frem — brevsprække." },
-      { id: "tilbud-laest", title: "Kundskabsøjeblikket", short: "Tilbud læst", buildLabel: "Modtageren læser tilbuddet", description: "Modtageren læser tilbuddet, og tilbudsgiver bliver bundet.", type: "read", lane: "right", symbol: "✓", category: "Læst", binding: "Her bliver tilbudsgiver bundet. Kundskab = læst.", checklist: "Tilbuddet læses — kundskab. Tilbudsgiver er bundet." },
-      { id: "betaenkningstid", title: "Betænkningstid", short: "Betænkningstid", buildLabel: "Modtageren overvejer sit svar", description: "Modtageren kan acceptere, afslå eller lade tilbuddet udløbe.", type: "action", lane: "right", symbol: "◷", category: "Tid til at tænke", binding: "Modtageren har tre muligheder: ja, nej eller at lade tilbuddet udløbe.", checklist: "Betænkningstid: acceptere, afslå eller lade udløbe." },
-      { id: "accept", title: "Accept", short: "Accept sendes", buildLabel: "Modtageren siger ja og sender accepten", description: "Modtageren siger ja og sender en accept tilbage.", type: "action", lane: "right", direction: "left", symbol: "↙", category: "Accept", binding: "Accepten er på vej tilbage til tilbudsgiver.", checklist: "Modtageren sender en accept tilbage." },
-      { id: "accept-modtaget", title: "Brevsprækkeøjeblikket", short: "Accept modtaget", buildLabel: "Accepten kommer frem inden fristen", description: "Accepten kommer frem inden fristen, og tilbudsgiver er bundet.", type: "received", lane: "left", symbol: "↓", category: "Modtaget", binding: "Accepten skal komme frem inden fristen. Tilbudsgiver er bundet.", checklist: "Accepten kommer frem inden fristen — brevsprække." },
-      { id: "accept-laest", title: "Kundskabsøjeblikket", short: "Accept læst", buildLabel: "Tilbudsgiver læser accepten", description: "Tilbudsgiver læser accepten. Nu er begge parter bundet.", type: "read", lane: "left", symbol: "✓", category: "Begge er bundet", binding: "Nu er begge parter bundet. Modellen er gennemført.", checklist: "Tilbudsgiver læser accepten — kundskab. Begge er bundet." }
-    ];
-    const stepById = new Map(steps.map((step) => [step.id, step]));
-
-    const flashcards = [
-      { id: "f1", topic: "OVERBLIK", question: "Hvilket spørgsmål skal aftalemodellen hjælpe dig med at besvare?", answer: "Om der er indgået en bindende aftale mellem to parter." },
-      { id: "f2", topic: "TO ØJEBLIKKE", question: "Hvad betyder brevsprækkeøjeblikket?", answer: "Meddelelsen er modtaget — fx kommet frem til indbakken." },
-      { id: "f3", topic: "TO ØJEBLIKKE", question: "Hvad betyder kundskabsøjeblikket?", answer: "Meddelelsen er læst." },
-      { id: "f4", topic: "BINDENDE AFTALE", question: "Hvornår bliver tilbudsgiver bundet i trin 3?", answer: "Når tilbudsmodtager læser tilbuddet — kundskabsøjeblikket." },
-      { id: "f5", topic: "BETÆNKNINGSTID", question: "Hvilke tre muligheder har tilbudsmodtager?", answer: "Acceptere, afslå eller lade tilbuddet udløbe." },
-      { id: "f6", topic: "ACCEPT", question: "Hvad gør modtageren, når tilbuddet accepteres?", answer: "Siger ja og sender en accept tilbage til tilbudsgiver." },
-      { id: "f7", topic: "ACCEPTFRIST", question: "Hvad er en acceptfrist?", answer: "Den tid, man har til at acceptere tilbuddet." },
-      { id: "f8", topic: "BINDENDE AFTALE", question: "Hvornår er begge parter bundet i modellen?", answer: "Når tilbudsgiver læser accepten i trin 7." },
-      { id: "f9", topic: "VIGTIGT · REGLER", question: "Hvad betyder deklaratoriske regler?", answer: "Fravigelige regler. Parterne må gerne aftale noget andet, end loven siger." },
-      { id: "f10", topic: "VIGTIGT · REGLER", question: "Hvad betyder præceptive regler?", answer: "Ufravigelige regler. Parterne må IKKE aftale andet, end loven siger." },
-      { id: "f11", topic: "VIGTIGT · REGLER", question: "Hvad er beskyttelsespræceptive regler?", answer: "Parterne må gerne aftale andet, så længe det er til den svage parts fordel." },
-      { id: "f12", topic: "AFTALEFORM", question: "Er både skriftlige og mundtlige aftaler bindende?", answer: "Ja, begge er bindende." },
-      { id: "f13", topic: "LØFTE", question: "Hvad er et stiltiende løfte?", answer: "Man bliver bundet af en aftale uden at sige noget." },
-      { id: "f14", topic: "FIRE CENTRALE ORD", question: "Hvilke fire ord er centrale i aftaleretten?", answer: "Løfte, tilbud, accept og påbud." },
-      { id: "f15", topic: "LØFTE", question: "Hvornår binder et løfte?", answer: "Når det er læst — i kundskabsøjeblikket." },
-      { id: "f16", topic: "PÅBUD", question: "Hvornår binder et påbud?", answer: "Når det er modtaget — i brevsprækkeøjeblikket." },
-      { id: "f17", topic: "MODELLEN · TRIN 1", question: "Hvad sker der i trin 1?", answer: "Tilbudsgiver sender et tilbud til tilbudsmodtager." },
-      { id: "f18", topic: "MODELLEN · TRIN 2", question: "Hvad sker der i trin 2?", answer: "Tilbuddet kommer frem til modtagerens indbakke. Det er brevsprækkeøjeblikket." },
-      { id: "f19", topic: "MODELLEN · TRIN 3", question: "Hvad sker der i trin 3?", answer: "Modtageren læser tilbuddet. Det er kundskabsøjeblikket, og tilbudsgiver bliver bundet." },
-      { id: "f20", topic: "MODELLEN · TRIN 4", question: "Hvad sker der i trin 4?", answer: "Betænkningstid: Modtageren kan acceptere, afslå eller lade tilbuddet udløbe." },
-      { id: "f21", topic: "MODELLEN · TRIN 5", question: "Hvad sker der i trin 5?", answer: "Modtageren siger ja og sender en accept tilbage." },
-      { id: "f22", topic: "MODELLEN · TRIN 6", question: "Hvad sker der i trin 6?", answer: "Accepten kommer frem inden fristen. Det er brevsprækkeøjeblikket, og tilbudsgiver er bundet." },
-      { id: "f23", topic: "MODELLEN · TRIN 7", question: "Hvad sker der i trin 7?", answer: "Tilbudsgiver læser accepten. Det er kundskabsøjeblikket. Nu er begge parter bundet." },
-      { id: "f24", topic: "RÆKKEFØLGE", question: "Hvad kommer først: brevsprække eller kundskab?", answer: "Brevsprække: Meddelelsen modtages først. Kundskab: Derefter læses den." },
-      { id: "f25", topic: "TO PARTER", question: "Hvem sender tilbuddet, og hvem sender accepten?", answer: "Tilbudsgiver sender tilbuddet. Tilbudsmodtager sender accepten tilbage." },
-      { id: "f26", topic: "REGLER", question: "Ved hvilken regeltype må man kun fravige til den svage parts fordel?", answer: "Beskyttelsespræceptive regler." },
-      { id: "f27", topic: "ACCEPTFRIST", question: "Hvad skal der være sket med accepten inden fristen i trin 6?", answer: "Den skal være kommet frem til tilbudsgiver — være modtaget." },
-      { id: "f28", topic: "HUSKEREGEL", question: "Breve i kassen. Viden i hovedet. Hvilke to øjeblikke?", answer: "Breve i kassen = brevsprække (modtaget). Viden i hovedet = kundskab (læst)." }
-    ];
-    const flashById = new Map(flashcards.map((card) => [card.id, card]));
-
-    const questions = [
-      { id: "q1", question: "Hvornår bliver tilbudsgiver bundet i trin 3?", options: ["Når tilbudsgiver skriver tilbuddet.", "Når modtageren læser tilbuddet.", "Når modtageren begynder at tænke over svaret."], correct: 1, explanation: "Tilbudsgiver bliver bundet, når tilbudsmodtager læser tilbuddet — i kundskabsøjeblikket." },
-      { id: "q2", question: "Hvad betyder præceptiv?", options: ["Fravigelig.", "Kun mundtlig.", "Ufravigelig."], correct: 2, explanation: "Præceptive regler er ufravigelige. Parterne må IKKE aftale andet, end loven siger." },
-      { id: "q3", question: "Hvad er forskellen på brevsprække og kundskab?", options: ["Brevsprække = modtaget. Kundskab = læst.", "Brevsprække = læst. Kundskab = modtaget.", "Der er ingen forskel."], correct: 0, explanation: "Brevsprækkeøjeblikket er modtagelsen. Kundskabsøjeblikket er, når meddelelsen læses." },
-      { id: "q4", question: "Hvad betyder deklaratoriske regler?", options: ["Parterne må aldrig aftale andet.", "Parterne må gerne aftale noget andet, end loven siger.", "Reglerne gælder kun skriftlige aftaler."], correct: 1, explanation: "Deklaratoriske regler er fravigelige. Parterne må gerne aftale noget andet." },
-      { id: "q5", question: "Hvornår må parterne fravige beskyttelsespræceptive regler?", options: ["Når det er til den stærke parts fordel.", "Kun når aftalen er mundtlig.", "Når det er til den svage parts fordel."], correct: 2, explanation: "Beskyttelsespræceptive regler må fraviges til den svage parts fordel." },
-      { id: "q6", question: "Hvilke aftaleformer er bindende?", options: ["Kun skriftlige.", "Både skriftlige og mundtlige.", "Kun mundtlige."], correct: 1, explanation: "Både skriftlige og mundtlige aftaler er bindende." },
-      { id: "q7", question: "Hvad er et stiltiende løfte?", options: ["Man bliver bundet uden at sige noget.", "Et tilbud, der er læst op.", "En aftale, der altid skal skrives ned."], correct: 0, explanation: "Et stiltiende løfte betyder, at man bliver bundet af en aftale uden at sige noget." },
-      { id: "q8", question: "Hvornår binder et påbud?", options: ["Når det er læst.", "Når det er modtaget.", "Før det er sendt."], correct: 1, explanation: "Et påbud binder ved modtagelsen — i brevsprækkeøjeblikket." },
-      { id: "q9", question: "Hvornår binder et løfte?", options: ["Når det er skrevet.", "Når det bliver tænkt.", "Når det er læst."], correct: 2, explanation: "Et løfte binder, når det er læst — i kundskabsøjeblikket." },
-      { id: "q10", question: "Hvad er en acceptfrist?", options: ["Den tid, man har til at acceptere tilbuddet.", "Den tid, det tager at skrive et tilbud.", "Tidspunktet, hvor begge parter læser samme brev."], correct: 0, explanation: "Acceptfristen er den tid, man har til at acceptere tilbuddet." },
-      { id: "q11", question: "Hvilke muligheder har modtageren i betænkningstiden?", options: ["Kun at acceptere.", "Acceptere eller sende et påbud.", "Acceptere, afslå eller lade tilbuddet udløbe."], correct: 2, explanation: "I trin 4 kan modtageren acceptere, afslå eller lade tilbuddet udløbe." },
-      { id: "q12", question: "Hvad sker der i trin 6?", options: ["Tilbudsgiver sender det første tilbud.", "Accepten kommer frem inden fristen, og tilbudsgiver er bundet.", "Modtageren begynder sin betænkningstid."], correct: 1, explanation: "Trin 6 er acceptens brevsprækkeøjeblik. Accepten kommer frem inden fristen, og tilbudsgiver er bundet." },
-      { id: "q13", question: "Hvornår er begge parter bundet ifølge modellen?", options: ["Når modtageren tænker på at sige ja.", "Når tilbudsgiver sender sit tilbud.", "Når tilbudsgiver læser accepten."], correct: 2, explanation: "I trin 7 læser tilbudsgiver accepten. Nu er begge parter bundet." },
-      { id: "q14", question: "Hvilken rækkefølge er rigtig?", options: ["Tilbud → modtaget → læst → betænkningstid → accept → modtaget → læst.", "Tilbud → læst → modtaget → accept → betænkningstid → læst → modtaget.", "Accept → tilbud → betænkningstid → læst → modtaget → læst → modtaget."], correct: 0, explanation: "Først sendes tilbuddet, som modtages og læses. Efter betænkningstiden sendes accepten, som modtages og læses." },
-      { id: "q15", question: "Hvilke fire ord er centrale i aftaleretten?", options: ["Brev, indbakke, frist og papir.", "Løfte, tilbud, accept og påbud.", "Skrift, tale, stilhed og tid."], correct: 1, explanation: "De fire centrale ord er løfte, tilbud, accept og påbud." }
-    ];
-
-    // Lagring er valgfri: øvelserne fortsætter i hukommelsen ved blokeret lager.
-    let storageAvailable = true;
-    let storageNoticeShown = false;
-    const state = { theme: "system", known: [], difficulties: {}, results: [], best: { build: 0, draw: 0 } };
+  } catch {
+    storageWarning = true;
+  }
+  function save() {
     try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
-      if (saved && typeof saved === "object") {
-        if (["system", "light", "dark"].includes(saved.theme)) state.theme = saved.theme;
-        if (Array.isArray(saved.known)) state.known = [...new Set(saved.known.filter((id) => flashById.has(id)))];
-        if (saved.difficulties && typeof saved.difficulties === "object") {
-          for (const card of flashcards) {
-            const weight = saved.difficulties[card.id];
-            if (Number.isInteger(weight) && weight > 0 && weight <= 4) state.difficulties[card.id] = weight;
-          }
-        }
-        if (Array.isArray(saved.results)) state.results = saved.results.filter((item) => item && ["build", "draw"].includes(item.mode) && Number.isInteger(item.score) && item.score >= 0 && item.score <= 100 && Number.isFinite(item.time) && item.time > 0 && item.time < 8640000000000000).slice(-20);
-        for (const mode of ["build", "draw"]) {
-          const best = saved.best && saved.best[mode];
-          if (Number.isInteger(best) && best >= 0 && best <= 100) state.best[mode] = best;
-          for (const result of state.results) if (result.mode === mode) state.best[mode] = Math.max(state.best[mode], result.score);
-        }
-      }
-    } catch { storageAvailable = false; }
-
-    let toastTimer;
-    function toast(message) {
-      $("#toast").textContent = message;
-      $("#toast").hidden = false;
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => { $("#toast").hidden = true; }, 4200);
-    }
-    function saveState() {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); storageAvailable = true; }
-      catch {
-        storageAvailable = false;
-        if (!storageNoticeShown) {
-          toast("Browseren kan ikke gemme her. Du kan stadig øve dig, men fremgangen forsvinder, når siden lukkes.");
-          storageNoticeShown = true;
-        }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch {
+      if (!storageWarning) {
+        storageWarning = true;
+        toast("Browseren kan ikke gemme lige nu. Du kan fortsætte med at øve.");
       }
     }
-
-    // Tema: automatisk som standard, derefter mørkt/lyst og tilbage til systemet.
-    function applyTheme() {
-      if (state.theme === "system") document.documentElement.removeAttribute("data-theme");
-      else document.documentElement.dataset.theme = state.theme;
-      const labels = { system: "Automatisk", light: "Lyst", dark: "Mørkt" };
-      const dark = state.theme === "dark" || (state.theme === "system" && systemTheme.matches);
-      $("#themeLabel").textContent = labels[state.theme];
-      $("#themeToggle").setAttribute("aria-label", "Tema: " + labels[state.theme] + ". Skift tema");
-      $("#themeToggle").title = "Tema: " + labels[state.theme] + ". Klik for at skifte; tre klik giver automatisk tema igen.";
-      $("meta[name='theme-color']").content = dark ? "#11151f" : "#fafbfe";
-      if (studyToolsReady) refreshGraphics();
-    }
-    $("#themeToggle").addEventListener("click", () => {
-      if (state.theme === "system") state.theme = systemTheme.matches ? "light" : "dark";
-      else if (state.theme === (systemTheme.matches ? "dark" : "light")) state.theme = "system";
-      else state.theme = systemTheme.matches ? "dark" : "light";
-      applyTheme(); saveState(); toast("Tema: " + $("#themeLabel").textContent);
-    });
-    systemTheme.addEventListener("change", applyTheme);
+  }
+  let currentPoint = 0,
+    modelTimer = 0,
+    playRunning = false,
+    pictureZoom = 1,
+    pngUrl = "";
+  function themeIsDark() {
+    return state.theme === "dark" || state.theme === "system" && system.matches;
+  }
+  function applyTheme() {
+    document.documentElement.dataset.theme = themeIsDark() ? "dark" : "light";
+    const name = {
+      system: "Automatisk",
+      light: "Lys",
+      dark: "Mørk"
+    }[state.theme];
+    $("#themeToggle").setAttribute("aria-label", "Tema: " + name + ". Skift tema");
+    $("#themeToggle").title = "Tema: " + name;
+    refreshGraphics();
+  }
+  $("#themeToggle").addEventListener("click", () => {
+    state.theme = {
+      system: "light",
+      light: "dark",
+      dark: "system"
+    }[state.theme];
+    save();
     applyTheme();
+  });
+  system.addEventListener?.("change", () => {
+    if (state.theme === "system") applyTheme();
+  });
 
-    // Interaktiv tidslinje. Klassen angiver spor, og teksten angiver altid øjeblikket.
-    let currentStep = 0;
-    let modelTimer = null;
-    const timelineButtons = [];
-    steps.forEach((step, index) => {
-      const row = element("div", "timeline-row");
-      const marker = element("span", "timeline-marker", String(index + 1));
-      marker.setAttribute("aria-hidden", "true");
-      const button = element("button", "step-card lane-" + step.lane + " " + step.type);
-      button.type = "button";
-      button.setAttribute("aria-pressed", "false");
-      button.setAttribute("aria-label", "Trin " + (index + 1) + ": " + step.title + ". " + step.short);
-      button.classList.add("kind-" + kindOfStep(index));
-      const heading = element("strong"); heading.append(iconNode(kindOfStep(index)), document.createTextNode(step.title));
-      button.append(heading, element("small", "", step.short));
-      button.addEventListener("click", () => { stopModel(); selectStep(index); });
-      button.addEventListener("keydown", (event) => {
-        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-        event.preventDefault(); stopModel();
-        const delta = ["ArrowUp", "ArrowLeft"].includes(event.key) ? -1 : 1;
-        const next = event.key === "Home" ? 0 : event.key === "End" ? 6 : Math.max(0, Math.min(6, index + delta));
-        selectStep(next); timelineButtons[next].focus({ preventScroll: true });
-      });
-      row.append(marker, button);
-      const listen = soundButton("Læs trin " + (index + 1) + " op", () => readOne("Trin " + (index + 1) + ": " + step.title, step.description + " " + step.binding, button));
-      listen.classList.add("step-audio", "lane-" + step.lane); row.append(listen);
-      if (step.direction) {
-        const side = step.lane === "left" ? "right" : "left";
-        const label = element("div", "timeline-direction " + side);
-        label.setAttribute("aria-hidden", "true");
-        label.append(document.createTextNode(step.direction === "right" ? "Tilbud " : "Accept "), element("span", "", step.direction === "right" ? "→" : "←"));
-        row.append(label);
-      }
-      $("#timeline").append(row); timelineButtons.push(button);
-    });
-    function selectStep(index) {
-      currentStep = index;
-      const step = steps[index];
-      timelineButtons.forEach((button, i) => {
-        button.classList.toggle("is-active", i === index);
-        button.setAttribute("aria-pressed", String(i === index));
-        button.parentElement.classList.toggle("is-active", i === index);
-        button.parentElement.classList.toggle("is-visited", i <= index);
-      });
-      const kind = kindOfStep(index);
-      $("#stepCategory").replaceChildren(iconNode(kind), document.createTextNode(step.category));
-      $("#stepCategory").className = "pill semantic-pill role-" + kind;
-      $("#stepCounter").textContent = String(index + 1).padStart(2, "0") + " / 07";
-      $("#stepIcon").innerHTML = iconMarkup(kind);
-      $("#stepIcon").className = "detail-symbol role-" + kind;
-      $("#stepRole").replaceChildren(semanticTag(step.lane === "left" ? "giver" : "recipient", true));
-      $("#stepTitle").textContent = step.title;
-      $("#stepExplanation").textContent = step.description;
-      $("#stepBinding").textContent = step.binding;
-      $("#previousStep").disabled = index === 0;
-      $("#nextStep").textContent = index === 6 ? "Start forfra ↻" : "Næste trin →";
-      $$("[data-graphic-step]").forEach((node) => node.classList.toggle("is-graphic-active", Number(node.dataset.graphicStep) === index));
+  // Originalbilledet vises uændret. SVG bruges kun til ramme og fokusmarkering.
+  const MODEL_REGIONS = {
+  "send": [
+    32,
+    104,
+    250,
+    236
+  ],
+  "outbound": [
+    276,
+    150,
+    496,
+    104
+  ],
+  "receive": [
+    770,
+    112,
+    370,
+    220
+  ],
+  "thinking": [
+    862,
+    317,
+    141,
+    286
+  ],
+  "accept": [
+    800,
+    596,
+    280,
+    241
+  ],
+  "return": [
+    287,
+    648,
+    520,
+    115
+  ],
+  "binding": [
+    30,
+    587,
+    270,
+    252
+  ],
+  "withdraw": [
+    85,
+    381,
+    751,
+    150
+  ],
+  "fixed": [
+    1020,
+    366,
+    453,
+    67
+  ],
+  "legal": [
+    1012,
+    437,
+    502,
+    158
+  ],
+  "late": [
+    70,
+    854,
+    661,
+    73
+  ],
+  "different": [
+    68,
+    929,
+    720,
+    66
+  ],
+  "claim": [
+    909,
+    867,
+    573,
+    126
+  ],
+  "exceptions": [
+    65,
+    846,
+    741,
+    150
+  ]
+};
+  function modelSvg(forceLight = false, prefix = "model", selected = -1, animate = false) {
+    const key = typeof selected === "string" ? selected : ["send","receive","accept","binding"][selected];
+    const region = MODEL_REGIONS[key];
+    const description = "TG sender tilbud til TM gennem fremsendelsestiden. Hos TM følger betænkningstid. TM er acceptant og sender accept tilbage gennem tilbagesendelsestiden til bindende aftale. Kuvert betyder modtaget. Øje betyder læst. Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket. AFTL paragraf 2: fast frist. Paragraf 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid. Forsinkelse: paragraf 4, nyt tilbud. Uoverensstemmende: paragraf 6, modbud. Begge forbindes med pligtmæssig reklamation, paragraf 40.";
+    let svg = `<svg class="model-svg original-model" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 1024" role="img" aria-labelledby="${prefix}-title ${prefix}-desc"><title id="${prefix}-title">Dit whiteboardbillede af aftalemodellen</title><desc id="${prefix}-desc">${escapeXml(description)}</desc><image href="${MODEL_IMAGE}" x="0" y="0" width="1536" height="1024"/>`;
+    if (region) {
+      const [x,y,w,h]=region;
+      svg += `<defs><mask id="${prefix}-spotlight"><rect width="1536" height="1024" fill="white"/><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="20" fill="black"/></mask></defs><rect width="1536" height="1024" fill="#13203b" opacity="0.2" mask="url(#${prefix}-spotlight)"/><rect class="photo-focus${animate?" is-playing":""}" x="${x}" y="${y}" width="${w}" height="${h}" rx="20" fill="none" stroke="#6547d8" stroke-width="7"/>`;
     }
-    function stopModel() {
-      clearInterval(modelTimer); modelTimer = null;
-      $("#playModel").textContent = "▷ Afspil hele modellen";
-      $("#playModel").setAttribute("aria-pressed", "false");
-    }
-    $("#nextStep").addEventListener("click", () => { stopModel(); selectStep((currentStep + 1) % steps.length); });
-    $("#previousStep").addEventListener("click", () => { stopModel(); selectStep(Math.max(0, currentStep - 1)); });
-    $("#playModel").addEventListener("click", () => {
-      if (modelTimer) { stopModel(); return; }
-      selectStep(0);
-      $("#playModel").textContent = "Ⅱ Sæt afspilning på pause";
-      $("#playModel").setAttribute("aria-pressed", "true");
-      modelTimer = setInterval(() => {
-        if (currentStep >= 6) { stopModel(); return; }
-        selectStep(currentStep + 1);
-        if (currentStep === 6) stopModel();
-      }, 2100);
-    });
-    document.addEventListener("visibilitychange", () => { if (document.hidden) stopModel(); });
-    selectStep(0);
+    return svg+"</svg>";
+  }
+  function refreshGraphics() {
+    $("#modelGraphic").innerHTML = modelSvg(false, "main", playRunning ? currentPoint : -1, playRunning && !motion.matches);
+    $("#answerGraphic").innerHTML = modelSvg(false, "answer");
+    if ($("#graphicDialog").open) $("#zoomGraphicContent").innerHTML = modelSvg(false, "zoom");
+    if ($("#presentDialog").open) renderSlide();
+  }
 
-    // Flashcards: en kø sikrer alle kort; svære kort indsættes flere gange.
-    const known = new Set(state.known);
-    let flashQueue = [];
-    let flashHistory = [];
-    let flashPosition = -1;
-    let flashFlipped = false;
-    let flashTouchStart = null;
-    let suppressFlashClickUntil = 0;
-    const allFlashIds = flashcards.map((card) => card.id);
-    function makeFlashQueue() {
-      const ids = allFlashIds.filter((id) => !known.has(id));
-      const base = ids.length ? ids : allFlashIds;
-      let queue = shuffle(base);
-      for (const id of shuffle(base)) {
-        for (let i = 0; i < (state.difficulties[id] || 0); i++) {
-          queue.splice(Math.min(queue.length, Math.floor(Math.random() * Math.max(queue.length, 1))), 0, id);
-        }
+  // Kort, begreber og huskehjælp dannes af de samme kildetekster.
+  function renderLearningContent() {
+    for (const [kind, type] of Object.entries(TYPES)) {
+      const item = el("div", "legend-item");
+      item.dataset.kind = kind;
+      const copy = el("div");
+      copy.append(el("strong", "", type.label), el("small", "", type.hint));
+      item.append(iconNode(kind), copy);
+      $("#semanticLegend").append(item);
+    }
+    for (const t of times) {
+      const card = el("article", "time-card reveal");
+      card.id = "time-" + t.id;
+      card.dataset.kind = t.kind;
+      card.append(tag(t.kind), el("h3", "", t.title), el("p", "", t.text), audioButton(t.title, () => readOne(t.title, t.text, card)));
+      $("#timeCards").append(card);
+    }
+    for (const c of concepts) {
+      const details = el("details", "concept");
+      details.id = "concept-" + c.id;
+      details.dataset.kind = c.kind;
+      const summary = el("summary");
+      summary.append(iconNode(c.kind), document.createTextNode(c.title));
+      const body = el("div", "concept-body");
+      body.append(el("span","concept-source",c.category==="concepts"?"GRUNDBEGREB":"FRA MODELLEN"),el("p","concept-definition",c.text));
+      if (c.items) {
+        const words=el("dl","word-grid");
+        for (const [word,meaning] of c.items) { const group=el("div"); group.append(el("dt","",word),el("dd","",meaning)); words.append(group); }
+        body.append(words);
       }
-      // Undgå ens nabokort, når der er andre muligheder.
-      for (let i = 1; i < queue.length; i++) {
-        if (queue[i] === queue[i - 1]) {
-          const later = queue.findIndex((id, j) => j > i && id !== queue[i]);
-          if (later !== -1) [queue[i], queue[later]] = [queue[later], queue[i]];
-        }
-      }
-      return queue;
+      if (c.example) { const example=el("div","concept-example"); example.append(el("strong","","Et eksempel"),el("p","",c.example)); body.append(example); }
+      if (c.remember) { const remember=el("div","concept-remember"); remember.append(el("strong","","Det skal du huske"),el("p","",c.remember)); body.append(remember); }
+      body.append(audioButton(c.title,()=>readOne(c.title,conceptSpeech(c),details)));
+      details.open=c.id==="silent";
+      details.append(summary, body);
+      $("#concepts").append(details);
     }
-    function setFlipped(flipped) {
-      flashFlipped = flipped;
-      $("#flashCard").classList.toggle("is-flipped", flipped);
-      $("#flashCard").setAttribute("aria-pressed", String(flipped));
-      $("#flashCard").setAttribute("aria-label", flipped ? "Svar: " + $("#flashAnswer").textContent + ". Vend for at se spørgsmålet." : "Spørgsmål: " + $("#flashQuestion").textContent + ". Vend for at se svaret.");
-      $(".flash-front").setAttribute("aria-hidden", String(flipped));
-      $(".flash-back").setAttribute("aria-hidden", String(!flipped));
-      $("#flashAgain").disabled = !flipped;
-      $("#flashKnown").disabled = !flipped;
+    for (const m of memories) {
+      const card = el("article", "memory-card reveal");
+      card.id = "memory-" + m.id;
+      card.dataset.kind = m.kind;
+      card.append(tag(m.kind), el("h3", "", m.title));
+      if (m.list) {
+        const list = el("ol");
+        m.list.forEach(x => list.append(el("li", "", x)));
+        card.append(list);
+      } else card.append(el("p", "", m.text));
+      card.append(audioButton(m.title, () => readOne(m.title, m.text || m.list.join(" "), card)));
+      $("#memoryCards").append(card);
     }
-    function renderFlash() {
-      const card = flashById.get(flashHistory[flashPosition]);
-      $("#flashTopic").textContent = card.topic;
-      $("#flashQuestion").textContent = card.question;
-      $("#flashAnswer").textContent = card.answer;
-      updateSemanticTags($("#flashSemantics"), card.question + " " + card.answer);
-      $("#previousFlash").disabled = flashPosition === 0;
-      $("#flashMastered").textContent = String(known.size);
-      $("#flashProgress").value = known.size;
-      $("#flashStatus").textContent = known.size === flashcards.length ? "Alle klaret! Du kan stadig repetere." : known.has(card.id) ? "Et kort, du allerede kan" : "Ét kort ad gangen";
-      setFlipped(false);
-    }
-    function nextFlash() {
-      if (flashPosition < flashHistory.length - 1) flashPosition++;
-      else {
-        if (!flashQueue.length) flashQueue = makeFlashQueue();
-        let id = flashQueue.shift();
-        if (id === flashHistory[flashPosition] && flashQueue.some((item) => item !== id)) {
-          const nextDifferent = flashQueue.findIndex((item) => item !== id);
-          const replacement = flashQueue.splice(nextDifferent, 1)[0];
-          flashQueue.push(id); id = replacement;
-        }
-        flashHistory.push(id); flashPosition++;
-      }
-      renderFlash();
-    }
-    function restartFlashDeck() {
-      flashQueue = makeFlashQueue(); flashHistory = []; flashPosition = -1; nextFlash();
-    }
-    function rateFlash(isKnown) {
-      if (!flashFlipped) return;
-      const id = flashHistory[flashPosition];
-      // Vurdering af et tidligere kort fortsætter i en ny gren af øvekøen.
-      flashHistory = flashHistory.slice(0, flashPosition + 1);
-      if (isKnown) {
-        known.add(id); delete state.difficulties[id];
-        flashQueue = flashQueue.filter((item) => item !== id);
-      } else {
-        known.delete(id); state.difficulties[id] = Math.min(4, (state.difficulties[id] || 0) + 1);
-        // To konkrete genbesøg plus højere vægt ved næste blanding.
-        flashQueue = flashQueue.filter((item) => item !== id);
-        flashQueue.splice(Math.min(2, flashQueue.length), 0, id);
-        flashQueue.splice(Math.min(6, flashQueue.length), 0, id);
-      }
-      state.known = [...known]; saveState(); nextFlash();
-      $("#flashCard").focus({ preventScroll: true });
-      toast(isKnown ? (known.size === flashcards.length ? "Alle 28 kort er klaret. Godt gået!" : "Klaret — videre til det næste kort.") : "Kortet kommer snart igen. Gentagelse hjælper.");
-    }
-    $("#flashCard").addEventListener("click", () => { if (Date.now() >= suppressFlashClickUntil) setFlipped(!flashFlipped); });
-    $("#nextFlash").addEventListener("click", nextFlash);
-    $("#previousFlash").addEventListener("click", () => { if (flashPosition > 0) { flashPosition--; renderFlash(); } });
-    $("#flashKnown").addEventListener("click", () => rateFlash(true));
-    $("#flashAgain").addEventListener("click", () => rateFlash(false));
-    $("#shuffleFlash").addEventListener("click", () => { restartFlashDeck(); toast("Kortene er blandet. Din fremgang er gemt."); });
-    $("#resetFlash").addEventListener("click", () => { known.clear(); state.known = []; state.difficulties = {}; saveState(); restartFlashDeck(); toast("Flashcard-fremgangen er nulstillet."); });
-    $("#flashcards").addEventListener("keydown", (event) => {
-      if (event.key === "ArrowRight") { event.preventDefault(); nextFlash(); }
-      if (event.key === "ArrowLeft" && flashPosition > 0) { event.preventDefault(); flashPosition--; renderFlash(); }
+    teacherQuestions.forEach(([q, a], i) => {
+      const details = el("details", "concept");
+      details.id = "teacher-" + i;
+      const summary = el("summary", "", q);
+      const body = el("div", "concept-body");
+      body.append(el("p", "", a), audioButton(q, () => readOne(q, a, details)));
+      details.append(summary, body);
+      $("#teacherQuestions").append(details);
     });
-    $("#flashCard").addEventListener("pointerdown", (event) => { flashTouchStart = { x: event.clientX, y: event.clientY, id: event.pointerId }; });
-    $("#flashCard").addEventListener("pointerup", (event) => {
-      if (!flashTouchStart || flashTouchStart.id !== event.pointerId) return;
-      const dx = event.clientX - flashTouchStart.x;
-      const dy = event.clientY - flashTouchStart.y;
-      flashTouchStart = null;
-      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) {
-        suppressFlashClickUntil = Date.now() + 500;
-        if (dx < 0) nextFlash();
-        else if (flashPosition > 0) { flashPosition--; renderFlash(); }
-      }
-    });
-    $("#flashCard").addEventListener("pointercancel", () => { flashTouchStart = null; });
-    $$(".flash-total").forEach((node) => { node.textContent = String(flashcards.length); });
-    $("#flashProgress").max = flashcards.length;
-    restartFlashDeck();
-
-    // Quiz: svar låses efter valget. Forkerte spørgsmål kan øves separat.
-    let quizItems = [];
-    let quizPosition = 0;
-    let quizAnswers = [];
-    let quizAnswered = false;
-    let wrongQuestions = [];
-    function beginQuiz(items, focus = false) {
-      quizItems = [...items]; quizPosition = 0; quizAnswers = []; quizAnswered = false;
-      $("#quizQuestionPanel").hidden = false; $("#quizResult").hidden = true;
-      $("#quizProgress").max = quizItems.length;
-      renderQuestion(focus);
-    }
-    function renderQuestion(focus) {
-      const question = quizItems[quizPosition];
-      quizAnswered = false;
-      $("#quizCounter").textContent = "SPØRGSMÅL " + String(quizPosition + 1).padStart(2, "0") + " / " + String(quizItems.length).padStart(2, "0");
-      $("#quizProgress").value = quizPosition;
-      $("#quizRunningScore").textContent = quizAnswers.filter((answer) => answer.correct).length + " rigtige";
-      $("#quizQuestion").textContent = question.question;
-      updateSemanticTags($("#quizSemantics"), question.question);
-      $("#quizOptions").replaceChildren();
-      question.options.forEach((option, index) => {
-        const button = element("button", "quiz-option"); button.type = "button";
-        button.append(element("span", "option-letter", String.fromCharCode(65 + index)), element("span", "", option));
-        button.addEventListener("click", () => answerQuestion(index));
-        $("#quizOptions").append(button);
-      });
-      $("#quizFeedback").hidden = true;
-      $("#nextQuestion").disabled = true;
-      $("#nextQuestion").textContent = quizPosition === quizItems.length - 1 ? "Se mit resultat →" : "Næste spørgsmål →";
-      $("#quizInstruction").textContent = "Vælg det svar, du mener er rigtigt.";
-      if (focus) $("#quizQuestion").focus({ preventScroll: true });
-    }
-    function answerQuestion(index) {
-      if (quizAnswered) return;
-      quizAnswered = true;
-      const question = quizItems[quizPosition];
-      const correct = index === question.correct;
-      quizAnswers.push({ question, selected: index, correct });
-      $$(".quiz-option", $("#quizOptions")).forEach((button, i) => {
-        button.disabled = true;
-        if (i === question.correct) {
-          button.classList.add("correct"); $(".option-letter", button).textContent = "✓";
-          button.setAttribute("aria-label", "Rigtigt svar: " + question.options[i]);
-        }
-        if (i === index && !correct) {
-          button.classList.add("incorrect"); $(".option-letter", button).textContent = "×";
-          button.setAttribute("aria-label", "Dit svar, forkert: " + question.options[i]);
-        }
-      });
-      const feedback = $("#quizFeedback");
-      feedback.classList.toggle("is-wrong", !correct);
-      feedback.replaceChildren(element("strong", "", correct ? "Rigtigt — godt set." : "Ikke helt. Her er forklaringen."), document.createTextNode(question.explanation));
-      feedback.hidden = false;
-      $("#quizProgress").value = quizPosition + 1;
-      $("#quizRunningScore").textContent = quizAnswers.filter((answer) => answer.correct).length + " rigtige";
-      $("#nextQuestion").disabled = false;
-      $("#quizInstruction").textContent = "Læs forklaringen, og fortsæt, når du er klar.";
-      // Valgte svar låses; fokus flyttes til den næste brugbare kontrol.
-      $("#nextQuestion").focus({ preventScroll: true });
-    }
-    function finishQuiz() {
-      const correct = quizAnswers.filter((answer) => answer.correct).length;
-      wrongQuestions = quizAnswers.filter((answer) => !answer.correct).map((answer) => answer.question);
-      $("#quizQuestionPanel").hidden = true; $("#quizResult").hidden = false;
-      $("#quizResultTitle").textContent = correct + " af " + quizItems.length + " rigtige";
-      $("#quizResultText").textContent = correct === quizItems.length ? "Du har styr på denne runde. Prøv at genskabe modellen uden hjælp." : "Du fik " + Math.round(correct / quizItems.length * 100) + " %. Giv de svære spørgsmål en tur mere.";
-      $("#retryWrong").disabled = wrongQuestions.length === 0;
-      $("#retryWrong").textContent = wrongQuestions.length ? "Øv kun de forkerte (" + wrongQuestions.length + ")" : "Ingen forkerte at øve";
-      $("#quizReview").replaceChildren();
-      quizAnswers.filter((answer) => !answer.correct).forEach((answer) => {
-        const details = element("details");
-        details.append(element("summary", "", answer.question.question), element("p", "", "Dit svar: " + answer.question.options[answer.selected]), element("p", "", "Rigtigt svar: " + answer.question.options[answer.question.correct]), element("p", "", answer.question.explanation));
-        $("#quizReview").append(details);
-      });
-      $("#quizResultTitle").focus({ preventScroll: true });
-    }
-    $("#nextQuestion").addEventListener("click", () => {
-      if (!quizAnswered) return;
-      if (quizPosition === quizItems.length - 1) finishQuiz();
-      else { quizPosition++; renderQuestion(true); }
-    });
-    $("#retryWrong").addEventListener("click", () => { if (wrongQuestions.length) beginQuiz(wrongQuestions, true); });
-    $("#restartQuiz").addEventListener("click", () => beginQuiz(questions, true));
-    beginQuiz(questions);
-
-    // Fælles facit og valg mellem de to øvelsestilstande.
-    let practiceMode = "draw";
-    let answerVisible = false;
-    steps.forEach((step, i) => {
-      const item = element("li", step.type);
-      item.classList.add("kind-" + kindOfStep(i));
-      const heading = element("strong"); heading.append(iconNode(kindOfStep(i)), document.createTextNode(step.title));
-      item.append(element("span", "step-number", String(i + 1)), heading, document.createTextNode(step.description));
-      item.append(soundButton("Læs facit til trin " + (i + 1) + " op", () => readOne("Trin " + (i + 1), step.description, item)));
-      $("#answerSteps").append(item);
-      const label = element("label", "check-label");
-      const input = element("input"); input.type = "checkbox"; input.value = step.id; input.dataset.stepCheck = String(i);
-      const symbol = iconNode(kindOfStep(i)); symbol.classList.add("role-" + kindOfStep(i));
-      label.append(input, symbol, document.createTextNode((i + 1) + ". " + step.checklist));
+    notes.forEach(n => $("#answerNotes").append(el("p", "", n.title + ": " + n.text)));
+    parts.forEach((p, i) => {
+      const label = el("label", "check-row");
+      const input = el("input");
+      input.type = "checkbox";
+      input.dataset.partCheck = p.id;
+      label.append(input, document.createTextNode((i < 7 ? "Forløb " + (i + 1) : "Note " + (i - 6)) + ": " + p.label));
       $("#drawingChecklist").append(label);
     });
-    function showAnswer(visible) {
-      answerVisible = visible;
-      $("#answerModel").hidden = !visible;
-      $("#practiceColumns").classList.toggle("has-answer", visible);
-      $("#toggleAnswer").setAttribute("aria-expanded", String(visible));
-      $("#toggleAnswer").textContent = visible ? "Skjul facit ↗" : "Vis facit ↗";
-    }
-    function setMode(mode) {
-      practiceMode = mode;
-      for (const name of ["draw", "build"]) {
-        const active = name === mode;
-        $("#" + name + "Tab").setAttribute("aria-selected", String(active));
-        $("#" + name + "Tab").tabIndex = active ? 0 : -1;
-        $("#" + name + "Panel").hidden = !active;
+    $$("[data-icon]").forEach(n => {
+      n.innerHTML = iconMarkup(n.dataset.icon);
+      n.setAttribute("aria-hidden", "true");
+    });
+    $$(".sound-button[data-read]").forEach(b => b.innerHTML = iconMarkup("speaker"));
+  }
+  function selectPoint(i, focus = false) {
+    currentPoint = Math.max(0, Math.min(points.length - 1, i));
+    const p = points[currentPoint];
+    $$(".timeline-card").forEach((b, n) => b.setAttribute("aria-pressed", String(n === currentPoint)));
+    $("#stepCategory").textContent = TYPES[p.kind].label;
+    $("#stepCategory").dataset.kind = p.kind;
+    $("#stepCounter").textContent = currentPoint + 1 + " / " + points.length;
+    $("#stepTitle").textContent = p.title;
+    $("#stepExplanation").textContent = p.text;
+    $("#stepNote").textContent = p.note;
+    $("#stepIcon").innerHTML = iconMarkup(p.kind);
+    $("#modelDetail").dataset.kind = p.kind;
+    $("#previousStep").disabled = currentPoint === 0;
+    refreshGraphics();
+    if (focus) $$(".timeline-card")[currentPoint].focus();
+  }
+  function stopModel() {
+    clearInterval(modelTimer);
+    modelTimer = 0;
+    playRunning = false;
+    $("#playModel").setAttribute("aria-pressed", "false");
+    $("#playModel").textContent = "▷ Afspil modellen";
+    refreshGraphics();
+  }
+  function startModel() {
+    stopModel();
+    playRunning = true;
+    selectPoint(0);
+    $("#playModel").textContent = "Ⅱ Stop afspilning";
+    $("#playModel").setAttribute("aria-pressed", "true");
+    modelTimer = setInterval(() => {
+      if (currentPoint < points.length - 1) selectPoint(currentPoint + 1);else stopModel();
+    }, 2600);
+  }
+  points.forEach((p, i) => {
+    const b = el("button", "timeline-card");
+    b.type = "button";
+    b.dataset.kind = p.kind;
+    b.setAttribute("aria-label", p.title + ". " + p.location);
+    b.append(el("span", "step-number", String(i + 1)));
+    const label = el("span");
+    label.append(el("strong", "", p.title), el("small", "", p.location));
+    b.append(label);
+    b.addEventListener("click", () => {
+      stopModel();
+      selectPoint(i);
+    });
+    b.addEventListener("keydown", e => {
+      if (["ArrowRight", "ArrowDown", "ArrowLeft", "ArrowUp", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        stopModel();
+        selectPoint(e.key === "Home" ? 0 : e.key === "End" ? 3 : (i + (["ArrowRight", "ArrowDown"].includes(e.key) ? 1 : 3)) % 4, true);
       }
-      $("#practiceModeNote").textContent = mode === "draw" ? "Din tegning + din tjekliste = din selvvurdering." : "Modellen tjekkes automatisk. Markér også modtaget og læst.";
-      $("#practiceMessage").hidden = true;
-      if (mode === "draw") requestAnimationFrame(resizeCanvas);
-    }
-    for (const mode of ["draw", "build"]) {
-      $("#" + mode + "Tab").addEventListener("click", () => setMode(mode));
-      $("#" + mode + "Tab").addEventListener("keydown", (event) => {
-        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-        event.preventDefault();
-        const targetMode = event.key === "Home" ? "draw" : event.key === "End" ? "build" : mode === "draw" ? "build" : "draw";
-        setMode(targetMode); $("#" + targetMode + "Tab").focus();
-      });
-    }
-    $("#toggleAnswer").addEventListener("click", () => showAnswer(!answerVisible));
+    });
+    $("#timeline").append(b);
+  });
+  $("#previousStep").addEventListener("click", () => {
+    stopModel();
+    selectPoint(currentPoint - 1);
+  });
+  $("#nextStep").addEventListener("click", () => {
+    stopModel();
+    selectPoint((currentPoint + 1) % 4);
+  });
+  $("#playModel").addEventListener("click", () => playRunning ? stopModel() : startModel());
+  $("#listenCurrentStep").innerHTML = iconMarkup("speaker");
+  $("#listenCurrentStep").addEventListener("click", () => {
+    stopModel();
+    const p = points[currentPoint];
+    readOne(p.title, p.text + " " + p.note, $("#modelDetail"));
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) stopModel();
+  });
 
-    // Canvas: vektorstregers koordinater bevares ved resize og ændret tema.
-    const canvas = $("#drawingCanvas");
-    const context = canvas.getContext("2d");
-    const LOGICAL_WIDTH = 1000;
-    const LOGICAL_HEIGHT = 750;
-    let strokes = [];
-    let undoneStrokes = [];
-    let currentStroke = null;
-    let activePointerId = null;
-    let penTool = "pen";
-    let penColor = "#26324b";
-    let penSize = 3;
-    let drawingFrame = 0;
-    function updateDrawingControls() {
-      $("#undoDrawing").disabled = strokes.length === 0;
-      $("#redoDrawing").disabled = undoneStrokes.length === 0;
-      $("#clearDrawing").disabled = strokes.length === 0;
-      $("#canvasEmpty").hidden = strokes.length > 0 || currentStroke !== null;
+  // Flashcards: forkert besvarede kort indsættes igen efter to andre kort.
+  const known = new Set(state.known);
+  let flashQueue = [],
+    flashHistory = [],
+    flashPosition = 0,
+    flipped = false,
+    swipeStart = null,
+    suppressFlashClick = 0;
+  function refillFlash() {
+    const cards = selectedCards();
+    const remaining = cards.filter(c => !known.has(c.id));
+    const pool = remaining.length ? remaining : cards;
+    flashQueue = shuffled(pool.flatMap(c => Array.from({
+      length: Math.min(3, state.difficulties[c.id] || 1)
+    }, () => c.id)));
+  }
+  function pickFlash() {
+    if (!flashQueue.length) refillFlash();
+    let candidate = flashQueue.shift();
+    const current = flashHistory[flashPosition];
+    if (candidate === current && flashQueue.length) {
+      flashQueue.push(candidate);
+      candidate = flashQueue.shift();
     }
-    function drawStroke(stroke) {
-      if (!stroke.points.length || !context) return;
-      context.globalCompositeOperation = stroke.tool === "eraser" ? "destination-out" : "source-over";
-      context.strokeStyle = stroke.color;
-      context.fillStyle = stroke.color;
-      context.lineCap = "round"; context.lineJoin = "round";
-      const points = stroke.points;
-      if (points.length === 1) {
-        context.beginPath(); context.arc(points[0].x, points[0].y, stroke.size * points[0].pressure / 2, 0, Math.PI * 2); context.fill();
-        return;
+    return candidate;
+  }
+  function setFlipped(value) {
+    flipped = value;
+    $("#flashCard").classList.toggle("is-flipped", value);
+    $("#flashCard").setAttribute("aria-pressed", String(value));
+    $(".flash-front").setAttribute("aria-hidden", String(value));
+    $(".flash-back").setAttribute("aria-hidden", String(!value));
+    $("#flashAgain").disabled = !value;
+    $("#flashKnown").disabled = !value;
+    const c = flashById.get(flashHistory[flashPosition]);
+    if (c) $("#flashCard").setAttribute("aria-label", (value ? "Svar: " + c.answer : "Spørgsmål: " + c.question) + " Tryk for at vende.");
+  }
+  function renderFlash() {
+    const c = flashById.get(flashHistory[flashPosition]);
+    $("#flashTopic").textContent = c.topic;
+    $("#flashQuestion").textContent = c.question;
+    $("#flashAnswer").textContent = c.answer;
+    $("#flashSemantics").replaceChildren(tag(c.kind));
+    const cards = selectedCards(), done = cards.filter(c=>known.has(c.id)).length;
+    $("#flashKnownCount").textContent = String(done);
+    $("#flashTotal").textContent = String(cards.length);
+    $("#flashProgress").max = cards.length;
+    $("#flashProgress").value = done;
+    $("#flashQueueLabel").textContent = done === cards.length ? "Alle kort klaret · klar til repetition" : "Ét kort ad gangen";
+    $("#previousFlash").disabled = flashPosition === 0;
+    setFlipped(false);
+  }
+  function nextFlash() {
+    if (flashPosition < flashHistory.length - 1) flashPosition++;else {
+      flashHistory.push(pickFlash());
+      flashPosition = flashHistory.length - 1;
+    }
+    renderFlash();
+  }
+  function restartFlash() {
+    refillFlash();
+    flashHistory = [flashQueue.shift()];
+    flashPosition = 0;
+    renderFlash();
+  }
+  function rateFlash(could) {
+    if (!flipped) return;
+    const id = flashHistory[flashPosition];
+    flashQueue = flashQueue.filter(x => x !== id);
+    if (could) {
+      known.add(id);
+      delete state.difficulties[id];
+    } else {
+      known.delete(id);
+      state.difficulties[id] = Math.min(6, (state.difficulties[id] || 1) + 1);
+      flashQueue.splice(Math.min(2, flashQueue.length), 0, id);
+    }
+    state.known = [...known];
+    save();
+    nextFlash();
+  }
+  $("#flashCard").addEventListener("click", () => {
+    if (Date.now() > suppressFlashClick) setFlipped(!flipped);
+  });
+  $("#previousFlash").addEventListener("click", () => {
+    if (flashPosition > 0) {
+      flashPosition--;
+      renderFlash();
+    }
+  });
+  $("#nextFlash").addEventListener("click", nextFlash);
+  $("#flashAgain").addEventListener("click", () => rateFlash(false));
+  $("#flashKnown").addEventListener("click", () => rateFlash(true));
+  $("#shuffleFlash").addEventListener("click", () => {
+    restartFlash();
+    toast("Kortene er blandet. Din fremgang er gemt.");
+  });
+  $("#resetFlash").addEventListener("click", () => {
+    for (const card of selectedCards()) { known.delete(card.id); delete state.difficulties[card.id]; }
+    state.known = [...known];
+    save();
+    restartFlash();
+    toast("Flashcard-fremgangen er nulstillet.");
+  });
+  $("#flashcards").addEventListener("keydown", e => {
+    if (e.target.closest("[data-practice-scope]")) return;
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      nextFlash();
+    }
+    if (e.key === "ArrowLeft" && flashPosition > 0) {
+      e.preventDefault();
+      flashPosition--;
+      renderFlash();
+    }
+  });
+  $("#flashCard").addEventListener("pointerdown", e => {
+    swipeStart = {
+      x: e.clientX,
+      y: e.clientY,
+      id: e.pointerId
+    };
+  });
+  $("#flashCard").addEventListener("pointerup", e => {
+    if (!swipeStart || swipeStart.id !== e.pointerId) return;
+    const dx = e.clientX - swipeStart.x,
+      dy = e.clientY - swipeStart.y;
+    swipeStart = null;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      suppressFlashClick = Date.now() + 400;
+      if (dx < 0) nextFlash();else if (flashPosition > 0) {
+        flashPosition--;
+        renderFlash();
       }
-      for (let i = 1; i < points.length; i++) {
-        const from = points[i - 1]; const to = points[i];
-        context.lineWidth = stroke.size * (from.pressure + to.pressure) / 2;
-        context.beginPath(); context.moveTo(from.x, from.y); context.lineTo(to.x, to.y); context.stroke();
-      }
     }
-    function renderDrawing() {
-      drawingFrame = 0;
-      if (!context) return;
-      context.save();
-      context.setTransform(1, 0, 0, 1, 0, 0); context.clearRect(0, 0, canvas.width, canvas.height);
-      context.setTransform(canvas.width / LOGICAL_WIDTH, 0, 0, canvas.height / LOGICAL_HEIGHT, 0, 0);
-      for (const stroke of strokes) drawStroke(stroke);
-      if (currentStroke) drawStroke(currentStroke);
-      context.restore();
-    }
-    function scheduleDrawing() { if (!drawingFrame) drawingFrame = requestAnimationFrame(renderDrawing); }
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      if (!rect.width || !rect.height) return;
-      const ratio = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio);
-      renderDrawing();
-    }
-    function pointFor(event) {
-      const rect = canvas.getBoundingClientRect();
-      return { x: (event.clientX - rect.left) / rect.width * LOGICAL_WIDTH, y: (event.clientY - rect.top) / rect.height * LOGICAL_HEIGHT, pressure: event.pointerType === "pen" ? Math.max(.25, event.pressure || .5) * 1.6 : 1 };
-    }
-    canvas.addEventListener("pointerdown", (event) => {
-      if (!context || activePointerId !== null || (event.pointerType === "mouse" && event.button !== 0)) return;
-      event.preventDefault(); canvas.focus({ preventScroll: true });
-      activePointerId = event.pointerId; canvas.setPointerCapture(event.pointerId);
-      const rect = canvas.getBoundingClientRect();
-      currentStroke = { tool: penTool, color: penColor, size: (penTool === "eraser" ? 22 : penSize) * LOGICAL_WIDTH / rect.width, points: [pointFor(event)] };
-      undoneStrokes = []; updateDrawingControls(); scheduleDrawing();
-    });
-    canvas.addEventListener("pointermove", (event) => {
-      if (!currentStroke || event.pointerId !== activePointerId) return;
-      event.preventDefault();
-      const events = typeof event.getCoalescedEvents === "function" ? event.getCoalescedEvents() : [event];
-      for (const point of events.length ? events : [event]) currentStroke.points.push(pointFor(point));
-      scheduleDrawing();
-    });
-    function finishStroke(event) {
-      if (event.pointerId !== activePointerId || !currentStroke) return;
-      strokes.push(currentStroke); currentStroke = null; activePointerId = null;
-      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-      updateDrawingControls(); renderDrawing();
-    }
-    canvas.addEventListener("pointerup", finishStroke);
-    canvas.addEventListener("pointercancel", finishStroke);
-    canvas.addEventListener("lostpointercapture", finishStroke);
-    function chooseTool(tool) {
-      penTool = tool;
-      $("#penTool").classList.toggle("is-active", tool === "pen");
-      $("#eraserTool").classList.toggle("is-active", tool === "eraser");
-      $("#penTool").setAttribute("aria-pressed", String(tool === "pen"));
-      $("#eraserTool").setAttribute("aria-pressed", String(tool === "eraser"));
-      canvas.classList.toggle("is-eraser", tool === "eraser");
-    }
-    $("#penTool").addEventListener("click", () => chooseTool("pen"));
-    $("#eraserTool").addEventListener("click", () => chooseTool("eraser"));
-    $$("[data-color]").forEach((button) => button.addEventListener("click", () => {
-      penColor = button.dataset.color; chooseTool("pen");
-      $$("[data-color]").forEach((swatch) => { swatch.classList.toggle("is-active", swatch === button); swatch.setAttribute("aria-pressed", String(swatch === button)); });
-    }));
-    $("#customColor").addEventListener("input", (event) => {
-      penColor = event.target.value; chooseTool("pen");
-      $$("[data-color]").forEach((button) => { button.classList.remove("is-active"); button.setAttribute("aria-pressed", "false"); });
-    });
-    $("#penSize").addEventListener("input", (event) => { penSize = Number(event.target.value); $("#penSizeValue").value = String(penSize); });
-    function undoDrawing() { if (strokes.length) { undoneStrokes.push(strokes.pop()); updateDrawingControls(); renderDrawing(); } }
-    function redoDrawing() { if (undoneStrokes.length) { strokes.push(undoneStrokes.pop()); updateDrawingControls(); renderDrawing(); } }
-    $("#undoDrawing").addEventListener("click", undoDrawing);
-    $("#redoDrawing").addEventListener("click", redoDrawing);
-    $("#clearDrawing").addEventListener("click", () => {
-      // Rydning kan fortrydes streg for streg med Gendan.
-      undoneStrokes = [...strokes].reverse(); strokes = []; updateDrawingControls(); renderDrawing();
-      toast("Lærredet er ryddet. Gendan kan hente stregerne tilbage.");
-    });
-    $("#drawPanel").addEventListener("keydown", (event) => {
-      if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z" || ["INPUT", "TEXTAREA", "SELECT"].includes(event.target.tagName)) return;
-      event.preventDefault(); if (event.shiftKey) redoDrawing(); else undoDrawing();
-    });
-    if ("ResizeObserver" in window) new ResizeObserver(resizeCanvas).observe(canvas);
-    else window.addEventListener("resize", resizeCanvas);
-    if (!context) { canvas.hidden = true; $("#canvasEmpty").textContent = "Canvas er ikke tilgængeligt. Vælg Byg modellen i stedet."; }
-    updateDrawingControls(); requestAnimationFrame(resizeCanvas);
+  });
+  $("#flashCard").addEventListener("pointercancel", () => swipeStart = null);
+  $("#listenFlash").innerHTML = iconMarkup("speaker");
+  $("#listenFlash").addEventListener("click", () => {
+    const c = flashById.get(flashHistory[flashPosition]);
+    readOne(flipped ? "Svaret" : c.question, flipped ? c.answer : c.question, $("#flashCard"));
+  });
 
-    // Byg: både træk med pointer events, tryk og almindelig tastaturbetjening.
-    let buildOrder = shuffle(steps.map((step) => step.id));
-    let buildSlots = Array(7).fill(null);
-    let buildTypes = {};
-    let selectedBuildId = null;
-    let drag = null;
-    let suppressBuildClickUntil = 0;
-    let evaluatedBuild = false;
-    function makeBuildCard(id) {
-      const card = element("button", "build-card"); card.type = "button"; card.dataset.cardId = id;
-      card.setAttribute("aria-pressed", String(selectedBuildId === id));
-      card.setAttribute("aria-label", stepById.get(id).buildLabel + ". Vælg kortet, og tryk derefter på en plads, eller træk det.");
-      const grip = element("span", "", "⋮⋮"); grip.setAttribute("aria-hidden", "true");
-      const index = steps.findIndex((step) => step.id === id);
-      card.classList.add("kind-" + kindOfStep(index));
-      card.append(grip, iconNode(kindOfStep(index)), element("span", "", stepById.get(id).buildLabel));
-      return card;
-    }
-    function renderBuild() {
-      $("#buildTray").replaceChildren();
-      for (const id of buildOrder) if (!buildSlots.includes(id)) $("#buildTray").append(makeBuildCard(id));
-      $("#buildSlots").replaceChildren();
-      buildSlots.forEach((id, index) => {
-        const slot = element("div", "build-slot"); slot.dataset.slot = String(index);
-        if (evaluatedBuild) slot.classList.add(id === steps[index].id ? "is-correct" : "is-incorrect");
-        const target = element("button", "slot-target", String(index + 1)); target.type = "button"; target.dataset.placeSlot = String(index);
-        target.setAttribute("aria-label", "Plads " + (index + 1) + ". " + (selectedBuildId ? "Placér det valgte trin her." : "Vælg først et kort, og tryk her for at placere det."));
-        const content = element("div", "slot-content");
-        if (id) {
-          content.append(makeBuildCard(id));
-          const remove = element("button", "slot-remove", "×"); remove.type = "button"; remove.dataset.removeSlot = String(index);
-          remove.setAttribute("aria-label", "Fjern " + stepById.get(id).buildLabel + " fra plads " + (index + 1));
-          content.append(remove);
-        } else content.append(element("span", "empty-slot-label", "Placér et trin her"));
-        slot.append(target, content);
-        if (id && ["received", "read"].includes(stepById.get(id).type)) {
-          const label = element("label", "slot-classification", "Hvilket øjeblik? ");
-          const select = element("select"); select.dataset.typeCard = id; select.setAttribute("aria-label", "Øjeblik for " + stepById.get(id).buildLabel);
-          for (const [value, text] of [["", "Vælg øjeblik"], ["received", "Brevsprække · modtaget"], ["read", "Kundskab · læst"]]) {
-            const option = element("option", "", text); option.value = value; select.append(option);
-          }
-          select.value = buildTypes[id] || ""; label.append(select); slot.append(label);
-        }
-        $("#buildSlots").append(slot);
-      });
-      decorateBuildAudio();
-    }
-    function updateSelection() {
-      $$("[data-card-id]", $("#buildPanel")).forEach((card) => card.setAttribute("aria-pressed", String(card.dataset.cardId === selectedBuildId)));
-      $$("[data-place-slot]", $("#buildPanel")).forEach((button, i) => button.setAttribute("aria-label", "Plads " + (i + 1) + ". " + (selectedBuildId ? "Placér " + stepById.get(selectedBuildId).buildLabel + " her." : "Vælg først et kort.")));
-    }
-    function clearBuildFeedback() {
-      evaluatedBuild = false;
-      $$(".build-slot").forEach((slot) => slot.classList.remove("is-correct", "is-incorrect"));
-    }
-    function placeBuildCard(id, targetIndex, focus = false) {
-      if (!stepById.has(id) || targetIndex < 0 || targetIndex > 6) return;
-      const previousIndex = buildSlots.indexOf(id);
-      const replaced = buildSlots[targetIndex];
-      if (previousIndex === targetIndex) { selectedBuildId = null; updateSelection(); return; }
-      if (previousIndex !== -1) buildSlots[previousIndex] = replaced;
-      buildSlots[targetIndex] = id;
-      selectedBuildId = null; evaluatedBuild = false; renderBuild();
-      $("#buildStatus").textContent = "Placeret på plads " + (targetIndex + 1) + ": " + stepById.get(id).buildLabel + ".";
-      if (focus) $("[data-place-slot='" + targetIndex + "']").focus({ preventScroll: true });
-    }
-    $("#buildPanel").addEventListener("click", (event) => {
-      if (Date.now() < suppressBuildClickUntil) { event.preventDefault(); return; }
-      const remove = event.target.closest("[data-remove-slot]");
-      const target = event.target.closest("[data-place-slot]");
-      const card = event.target.closest("[data-card-id]");
-      if (remove) {
-        const index = Number(remove.dataset.removeSlot); const id = buildSlots[index];
-        buildSlots[index] = null; selectedBuildId = null; evaluatedBuild = false; renderBuild();
-        $("#buildStatus").textContent = stepById.get(id).buildLabel + " er tilbage blandt kortene.";
-        $("[data-card-id='" + id + "']", $("#buildTray")).focus({ preventScroll: true });
-      } else if (target) {
-        if (selectedBuildId) placeBuildCard(selectedBuildId, Number(target.dataset.placeSlot), true);
-        else $("#buildStatus").textContent = "Vælg først et kort. Tryk derefter på nummeret på den ønskede plads.";
-      } else if (card) {
-        selectedBuildId = selectedBuildId === card.dataset.cardId ? null : card.dataset.cardId;
-        updateSelection();
-        $("#buildStatus").textContent = selectedBuildId ? "Valgt: " + stepById.get(selectedBuildId).buildLabel + ". Tryk på et pladsnummer for at placere kortet." : "Valget er fjernet. Vælg et nyt kort.";
+  // Quizzen låser hvert svar. Gennemgangen viser både eget og korrekt svar.
+  let quizSet = [],
+    questionIndex = 0,
+    quizAnswers = [],
+    questionLocked = false,
+    wrongQuestions = [];
+  // Skift nulstiller kun den aktuelle runde. Gemte kort og modelresultater bevares.
+  function inScope(item) { return state.practiceScope === "both" || item.category === state.practiceScope; }
+  function selectedCards() { return flashcards.filter(inScope); }
+  function selectedQuestions() { return questions.filter(inScope); }
+  function renderScope() {
+    $$("[data-practice-scope]").forEach(button=>button.setAttribute("aria-pressed",String(button.dataset.practiceScope===state.practiceScope)));
+    const name = {model:"Modellen",concepts:"Begreber",both:"Begge dele"}[state.practiceScope];
+    $$("[data-scope-summary]").forEach(n=>n.textContent=name+" · "+selectedCards().length+" kort · "+selectedQuestions().length+" spørgsmål");
+    $("#quizTotal").textContent=String(selectedQuestions().length);
+  }
+  $$("[data-practice-scope]").forEach(button=>button.addEventListener("click",()=>{
+    if (state.practiceScope===button.dataset.practiceScope) return;
+    if (reader.playing||reader.paused) stopSpeech(false);
+    state.practiceScope=button.dataset.practiceScope; save(); renderScope(); restartFlash(); beginQuiz(selectedQuestions());
+    toast("Kategorien er skiftet. En ny, blandet runde er klar.");
+  }));
+  // Både spørgsmålsrækkefølge og svarrækkefølge blandes ved hver ny runde.
+  function shuffleQuestion(question) {
+    const order = shuffled(question.options.map((_,i)=>i));
+    return {...question,options:order.map(i=>question.options[i]),feedback:order.map(i=>question.feedback[i]),correct:order.indexOf(question.correct)};
+  }
+  function beginQuiz(items, focus = false) {
+    quizSet = shuffled(items).map(shuffleQuestion);
+    questionIndex = 0;
+    quizAnswers = [];
+    questionLocked = false;
+    $("#quizResult").hidden = true;
+    $("#quizQuestionPanel").hidden = false;
+    renderQuestion(focus);
+  }
+  function renderQuestion(focus = false) {
+    const q = quizSet[questionIndex];
+    questionLocked = false;
+    $("#questionCounter").textContent = "SPØRGSMÅL " + (questionIndex + 1) + " / " + quizSet.length;
+    $("#liveScore").textContent = quizAnswers.filter(a => a.correct).length + " rigtige";
+    $("#quizProgress").max = quizSet.length;
+    $("#quizProgress").value = questionIndex;
+    $("#quizQuestion").textContent = q.text;
+    $("#quizSemantics").replaceChildren(tag(q.kind),el("span","quiz-category",q.category==="model"?"MODELLEN":"BEGREBER"));
+    $("#quizOptions").replaceChildren();
+    q.options.forEach((option, i) => {
+      const b = el("button", "quiz-option");
+      b.type = "button";
+      b.append(el("span", "option-letter", String.fromCharCode(65 + i)), el("span", "", option));
+      b.addEventListener("click", () => answerQuestion(i));
+      $("#quizOptions").append(b);
+    });
+    $("#quizFeedback").className = "quiz-feedback";
+    $("#quizFeedback").textContent = "Vælg et svar. Du får både begrundelse og huskehjælp.";
+    $("#nextQuestion").disabled = true;
+    $("#nextQuestion").textContent = questionIndex === quizSet.length - 1 ? "Se resultat →" : "Næste spørgsmål →";
+    if (focus) $("#quizQuestion").focus({
+      preventScroll: true
+    });
+  }
+  function answerQuestion(index) {
+    if (questionLocked) return;
+    questionLocked = true;
+    const q = quizSet[questionIndex],
+      correct = index === q.correct;
+    quizAnswers.push({
+      q,
+      index,
+      correct
+    });
+    $("#quizProgress").value = questionIndex + 1;
+    $("#liveScore").textContent = quizAnswers.filter(a => a.correct).length + " rigtige";
+    $$(".quiz-option").forEach((b, i) => {
+      b.disabled = true;
+      if (i === q.correct) {
+        b.classList.add("is-correct");
+        b.append(el("span", "answer-mark", i === index ? "✓ Dit svar" : "✓ Rigtigt"));
+      } else if (i === index) {
+        b.classList.add("is-wrong");
+        b.append(el("span", "answer-mark", "✕ Dit svar"));
       }
     });
-    $("#buildPanel").addEventListener("change", (event) => {
-      if (event.target.matches("[data-type-card]")) { buildTypes[event.target.dataset.typeCard] = event.target.value; clearBuildFeedback(); }
-    });
-    $("#buildPanel").addEventListener("keydown", (event) => {
-      if (event.key === "Escape") { selectedBuildId = null; updateSelection(); $("#buildStatus").textContent = "Valget er fjernet."; }
-    });
-    $("#resetBuild").addEventListener("click", () => {
-      buildSlots = Array(7).fill(null); buildTypes = {}; selectedBuildId = null; evaluatedBuild = false;
-      buildOrder = shuffle(steps.map((step) => step.id)); renderBuild();
-      $("#buildStatus").textContent = "Kortene er blandet. Byg modellen igen fra hukommelsen.";
-    });
-    $("#buildPanel").addEventListener("pointerdown", (event) => {
-      const card = event.target.closest("[data-card-id]");
-      if (!card || (event.pointerType === "mouse" && event.button !== 0)) return;
-      drag = { id: card.dataset.cardId, x: event.clientX, y: event.clientY, pointerId: event.pointerId, source: card, active: false, ghost: null };
-      card.setPointerCapture(event.pointerId);
-    });
-    $("#buildPanel").addEventListener("pointermove", (event) => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      if (!drag.active && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 9) {
-        drag.active = true; drag.source.classList.add("is-dragging");
-        drag.ghost = makeBuildCard(drag.id); drag.ghost.classList.add("drag-ghost"); drag.ghost.setAttribute("aria-hidden", "true"); drag.ghost.tabIndex = -1; document.body.append(drag.ghost);
-      }
-      if (!drag.active) return;
-      event.preventDefault();
-      drag.ghost.style.left = Math.max(4, Math.min(window.innerWidth - 244, event.clientX - 80)) + "px";
-      drag.ghost.style.top = event.clientY - 28 + "px";
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-slot]");
-      $$(".build-slot").forEach((slot) => slot.classList.toggle("is-drop-target", slot === target));
-      // Hjælp fingeren med at nå pladser længere nede i modellen.
-      if (event.clientY > window.innerHeight - 85) window.scrollBy({ top: 13, behavior: "instant" });
-      else if (event.clientY < 145) window.scrollBy({ top: -13, behavior: "instant" });
-    });
-    function finishDrag(event, cancelled = false) {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      const previous = drag;
-      const target = document.elementFromPoint(event.clientX, event.clientY)?.closest("[data-slot]");
-      const tray = document.elementFromPoint(event.clientX, event.clientY)?.closest("#buildTray");
-      drag = null;
-      if (previous.source.hasPointerCapture(event.pointerId)) previous.source.releasePointerCapture(event.pointerId);
-      previous.source.classList.remove("is-dragging"); previous.ghost?.remove();
-      $$(".build-slot").forEach((slot) => slot.classList.remove("is-drop-target"));
-      if (!previous.active) return;
-      suppressBuildClickUntil = Date.now() + 500;
-      if (cancelled) { $("#buildStatus").textContent = "Flytningen er annulleret."; return; }
-      if (target) placeBuildCard(previous.id, Number(target.dataset.slot));
-      else if (tray) {
-        const index = buildSlots.indexOf(previous.id);
-        if (index !== -1) buildSlots[index] = null;
-        selectedBuildId = null; evaluatedBuild = false; renderBuild();
-        $("#buildStatus").textContent = "Kortet er tilbage blandt de ledige kort.";
-      } else $("#buildStatus").textContent = "Slip på en plads. Du kan også vælge kortet og trykke på pladsens nummer.";
+    $("#quizFeedback").className = "quiz-feedback " + (correct ? "is-correct" : "is-wrong");
+    const feedback = $("#quizFeedback");
+    feedback.replaceChildren(el("strong","",correct?"✓ Rigtigt – sådan hænger det sammen":"✕ Lad os skille det ad"));
+    if (!correct) {
+      feedback.append(el("p","answer-context","Dit svar: "+q.options[index]));
+      feedback.append(el("p","",q.feedback[index]));
     }
-    $("#buildPanel").addEventListener("pointerup", (event) => finishDrag(event));
-    $("#buildPanel").addEventListener("pointercancel", (event) => finishDrag(event, true));
+    feedback.append(el("p","correct-answer","Det rigtige svar: "+q.options[q.correct]));
+    feedback.append(el("p","",q.why));
+    if (q.example) feedback.append(el("p","feedback-example","Eksempel: "+q.example));
+    feedback.append(el("p","feedback-memory","Husk: "+q.remember));
+    if (q.category==="model") {
+      const modelButton=el("button","button secondary small","Se det på billedet");
+      modelButton.type="button";
+      modelButton.addEventListener("click",()=>openGraphic(q.region));
+      feedback.append(modelButton);
+    } else {
+      const explanation=el("a","button secondary small","Læs begrebet igen");
+      const conceptMap={b01:"silent",b02:"silent",b03:"silent",b04:"form",b05:"form",b06:"offer",b07:"promise",b08:"offer",b09:"accept-word",b10:"four-words",b11:"order-word",b12:"order-word",b13:"order-word",b14:"four-words",b15:"promise",b16:"form",b17:"accept-word",b18:"silent"};
+      explanation.href="#concept-"+conceptMap[q.id];
+      explanation.addEventListener("click",()=>{$(explanation.hash).open=true;});
+      feedback.append(explanation);
+    }
+    $("#nextQuestion").disabled = false;
+  }
+  function countUp(node, goal, duration = 800) {
+    const token = String(Math.random());
+    node.dataset.animation = token;
+    const start = performance.now();
+    function tick(now) {
+      if (node.dataset.animation !== token) return;
+      const f = motion.matches ? 1 : Math.min(1, (now - start) / duration);
+      node.textContent = String(Math.round(goal * (1 - Math.pow(1 - f, 3))));
+      if (f < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+  function finishQuiz() {
+    const score = quizAnswers.filter(a => a.correct).length;
+    wrongQuestions = quizAnswers.filter(a => !a.correct).map(a => a.q);
+    $("#quizQuestionPanel").hidden = true;
+    $("#quizResult").hidden = false;
+    countUp($("#quizResultNumber"), score);
+    $("#quizResultText").textContent = "Du svarede rigtigt på " + score + " af " + quizSet.length + " spørgsmål. " + (wrongQuestions.length ? "Øv de forkerte igen, eller tag hele quizzen." : "Alle sammenhænge sad rigtigt denne gang.");
+    $("#retryWrong").disabled = !wrongQuestions.length;
+    $("#quizReview").replaceChildren();
+    quizAnswers.forEach(a => {
+      const item = el("article", "review-item");
+      item.append(el("strong", "", (a.correct ? "✓ " : "✕ ") + a.q.text), el("p", "", "Dit svar: " + a.q.options[a.index]));
+      if (!a.correct) item.append(el("p", "", "Rigtigt svar: " + a.q.options[a.q.correct]));
+      item.append(el("p", "", a.q.why),el("p","","Husk: "+a.q.remember));
+      if (!a.correct) item.append(el("p","",a.q.feedback[a.index]));
+      $("#quizReview").append(item);
+    });
+  }
+  $("#nextQuestion").addEventListener("click", () => {
+    if (!questionLocked) return;
+    if (questionIndex + 1 < quizSet.length) {
+      questionIndex++;
+      renderQuestion(true);
+    } else finishQuiz();
+  });
+  $("#retryWrong").addEventListener("click", () => {
+    if (wrongQuestions.length) beginQuiz(wrongQuestions, true);
+  });
+  $("#restartQuiz").addEventListener("click", () => beginQuiz(selectedQuestions(), true));
+  $("#shuffleQuiz").addEventListener("click",()=>{beginQuiz(selectedQuestions(),true);toast("Spørgsmål og svar er blandet på ny.");});
+  $("#listenQuiz").innerHTML = iconMarkup("speaker");
+  $("#listenQuiz").addEventListener("click", () => {
+    const q = quizSet[questionIndex];
+    readOne(q.text, q.text + " " + q.options.map((o, i) => "Mulighed " + String.fromCharCode(65 + i) + ": " + o).join(". ") + (questionLocked ? ". " + q.why : ""), $("#quizQuestionPanel"));
+  });
+  renderScope();
+
+  // Frihåndstegning gemmes som streger, så både fortryd og gendan virker.
+  const canvas = $("#drawingCanvas"),
+    ctx = canvas.getContext("2d");
+  const CANVAS_W = 1200,
+    CANVAS_H = 850;
+  let strokes = [],
+    undone = [],
+    activeStroke = null,
+    canvasFrame = 0,
+    tool = "pen",
+    penColor = "#1c263b",
+    penSize = 3;
+  function drawingControls() {
+    $("#undoDrawing").disabled = !strokes.length;
+    $("#redoDrawing").disabled = !undone.length;
+    $("#clearDrawing").disabled = !strokes.length;
+  }
+  function renderCanvas() {
+    canvasFrame = 0;
+    const sx = canvas.width / CANVAS_W,
+      sy = canvas.height / CANVAS_H;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    for (const s of strokes) {
+      ctx.save();
+      ctx.globalCompositeOperation = s.tool === "eraser" ? "destination-out" : "source-over";
+      ctx.strokeStyle = s.color;
+      ctx.fillStyle = s.color;
+      ctx.lineWidth = s.size;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      const first = s.points[0];
+      if (s.points.length === 1) {
+        ctx.beginPath();
+        ctx.arc(first.x, first.y, s.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(first.x, first.y);
+        for (let i = 1; i < s.points.length; i++) ctx.lineTo(s.points[i].x, s.points[i].y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+  function scheduleCanvas() {
+    if (!canvasFrame) canvasFrame = requestAnimationFrame(renderCanvas);
+  }
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const dpr = Math.min(devicePixelRatio || 1, 3);
+    const w = Math.round(rect.width * dpr),
+      h = Math.round(rect.height * dpr);
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w;
+      canvas.height = h;
+      renderCanvas();
+    }
+  }
+  function pointFor(e) {
+    const r = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - r.left) / r.width * CANVAS_W,
+      y: (e.clientY - r.top) / r.height * CANVAS_H
+    };
+  }
+  canvas.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || activeStroke) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    activeStroke = {
+      id: e.pointerId,
+      tool,
+      color: penColor,
+      size: tool === "eraser" ? Math.max(22, penSize * 5) : penSize,
+      points: [pointFor(e)]
+    };
+    strokes.push(activeStroke);
+    undone = [];
+    drawingControls();
+    scheduleCanvas();
+  });
+  canvas.addEventListener("pointermove", e => {
+    if (!activeStroke || activeStroke.id !== e.pointerId) return;
+    e.preventDefault();
+    const samples = typeof e.getCoalescedEvents === "function" ? e.getCoalescedEvents() : [e];
+    for (const sample of samples.length ? samples : [e]) activeStroke.points.push(pointFor(sample));
+    scheduleCanvas();
+  });
+  function finishStroke(e) {
+    if (!activeStroke || activeStroke.id !== e.pointerId) return;
+    activeStroke = null;
+    if (canvas.hasPointerCapture(e.pointerId)) canvas.releasePointerCapture(e.pointerId);
+    drawingControls();
+    scheduleCanvas();
+  }
+  canvas.addEventListener("pointerup", finishStroke);
+  canvas.addEventListener("pointercancel", finishStroke);
+  canvas.addEventListener("lostpointercapture", () => {
+    activeStroke = null;
+    drawingControls();
+  });
+  function chooseTool(value) {
+    tool = value;
+    $("#penTool").setAttribute("aria-pressed", String(tool === "pen"));
+    $("#eraserTool").setAttribute("aria-pressed", String(tool === "eraser"));
+    canvas.style.cursor = tool === "pen" ? "crosshair" : "cell";
+  }
+  $("#penTool").addEventListener("click", () => chooseTool("pen"));
+  $("#eraserTool").addEventListener("click", () => chooseTool("eraser"));
+  const penChoices = [["Mørk pen", "#1c263b"], ["Tilbudsgiver", "#1d4ed8"], ["Tilbudsmodtager", "#a74b06"], ["Modtaget, kuvert", "#7331ce"], ["Læst, øje", "#16724c"], ["Tid og frister", "#795200"], ["Tilbagekaldelse", "#aa245d"]];
+  penChoices.forEach(([name, color], i) => {
+    const b = el("button", "color-swatch");
+    b.type = "button";
+    b.style.backgroundColor = color;
+    b.dataset.penColor = color;
+    b.setAttribute("aria-label", name);
+    b.setAttribute("aria-pressed", String(i === 0));
+    b.addEventListener("click", () => {
+      penColor = color;
+      chooseTool("pen");
+      $$("[data-pen-color]").forEach(n => n.setAttribute("aria-pressed", String(n === b)));
+      $("#customColor").value = color;
+    });
+    $("#penColors").append(b);
+  });
+  $("#customColor").addEventListener("input", e => {
+    penColor = e.target.value;
+    chooseTool("pen");
+    $$("[data-pen-color]").forEach(b => b.setAttribute("aria-pressed", "false"));
+  });
+  $("#penSize").addEventListener("input", e => {
+    penSize = Number(e.target.value);
+    $("#penSizeValue").value = String(penSize);
+  });
+  function undoDrawing() {
+    if (activeStroke) return;
+    if (strokes.length) {
+      undone.push(strokes.pop());
+      drawingControls();
+      scheduleCanvas();
+    }
+  }
+  function redoDrawing() {
+    if (activeStroke) return;
+    if (undone.length) {
+      strokes.push(undone.pop());
+      drawingControls();
+      scheduleCanvas();
+    }
+  }
+  $("#undoDrawing").addEventListener("click", undoDrawing);
+  $("#redoDrawing").addEventListener("click", redoDrawing);
+  $("#clearDrawing").addEventListener("click", () => {
+    if (strokes.length && confirm("Vil du rydde din tegning?")) {
+      strokes = [];
+      undone = [];
+      activeStroke = null;
+      drawingControls();
+      scheduleCanvas();
+    }
+  });
+  $("#drawPanel").addEventListener("keydown", e => {
+    if (!(e.ctrlKey || e.metaKey) || ["INPUT", "TEXTAREA", "SELECT"].includes(e.target.tagName)) return;
+    if (e.key.toLowerCase() === "z") {
+      e.preventDefault();
+      e.shiftKey ? redoDrawing() : undoDrawing();
+    } else if (e.key.toLowerCase() === "y") {
+      e.preventDefault();
+      redoDrawing();
+    }
+  });
+  if ("ResizeObserver" in window) new ResizeObserver(resizeCanvas).observe(canvas);else window.addEventListener("resize", resizeCanvas);
+
+  // Byggetilstand: de første syv pladser er et forløb. Resten er sidetavlens noter.
+  let mode = "draw",
+    answerVisible = false,
+    buildSlots = Array(parts.length).fill(null),
+    selectedCard = null,
+    bankOrder = shuffled(parts.map(p => p.id)),
+    buildFeedback = false,
+    drag = null,
+    dragFrame = 0,
+    buildClickSuppressed = 0;
+  function showAnswer(value) {
+    answerVisible = value;
+    $("#answerPanel").hidden = !value;
+    $(".exercise-layout").classList.toggle("has-answer", value);
+    $("#toggleAnswer").textContent = value ? "Skjul facit" : "Vis facit";
+    $("#toggleAnswer").setAttribute("aria-expanded", String(value));
+    requestAnimationFrame(resizeCanvas);
+  }
+  function setMode(value, focus = false) {
+    mode = value;
+    for (const k of ["draw", "build"]) {
+      $("#" + k + "Tab").setAttribute("aria-selected", String(value === k));
+      $("#" + k + "Tab").tabIndex = value === k ? 0 : -1;
+      $("#" + k + "Panel").hidden = value !== k;
+    }
+    $("#exerciseHint").textContent = value === "draw" ? "Din tegning og din tjekliste giver din selvvurdering." : "Placering, rækkefølge og symboler afgør din score.";
+    $("#scorePanel").hidden = true;
+    if (focus) $("#" + value + "Tab").focus();
+    if (value === "draw") requestAnimationFrame(resizeCanvas);
+  }
+  $("#toggleAnswer").addEventListener("click", () => showAnswer(!answerVisible));
+  for (const k of ["draw", "build"]) {
+    $("#" + k + "Tab").addEventListener("click", () => setMode(k));
+    $("#" + k + "Tab").addEventListener("keydown", e => {
+      if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+        setMode(e.key === "Home" ? "draw" : e.key === "End" ? "build" : k === "draw" ? "build" : "draw", true);
+      }
+    });
+  }
+  function makeBuildCard(id) {
+    const p = partById.get(id);
+    const wrap = el("div", "build-card-wrap");
+    const b = el("button", "build-card");
+    b.type = "button";
+    b.dataset.part = id;
+    b.dataset.kind = p.kind;
+    b.setAttribute("aria-pressed", String(selectedCard === id));
+    b.setAttribute("aria-label", p.label + ". Vælg kortet og derefter en plads.");
+    b.append(iconNode(p.kind), el("span", "", p.label));
+    wrap.append(b, audioButton(p.label, () => readOne(p.label, p.text, wrap)));
+    return wrap;
+  }
+  function renderBuild() {
+    const used = new Set(buildSlots.filter(Boolean));
+    $("#buildBank").replaceChildren(...bankOrder.filter(id => !used.has(id)).map(makeBuildCard));
+    if (used.size === parts.length) $("#buildBank").append(el("p", "quiet", "Alle kort er placeret. Du kan flytte dem igen."));
+    $("#buildFlow").replaceChildren();
+    $("#buildNotes").replaceChildren();
+    parts.forEach((p, i) => {
+      const slot = el("div", "build-slot");
+      slot.dataset.index = String(i);
+      const target = el("button", "slot-target");
+      target.type = "button";
+      target.dataset.slot = String(i);
+      target.setAttribute("aria-label", (p.flow ? "Forløbsplads " + (i + 1) : "Noteplads " + (i - 6)) + ": " + p.slot + (buildSlots[i] ? ". Indeholder " + partById.get(buildSlots[i]).label : ". Tom plads"));
+      target.append(el("strong", "", p.flow ? "PLADS " + (i + 1) : "NOTE " + (i - 6)), document.createTextNode(p.slot));
+      slot.append(target);
+      if (buildSlots[i]) {
+        slot.append(makeBuildCard(buildSlots[i]));
+        const remove = el("button", "remove-card", "Til kortbanken");
+        remove.type = "button";
+        remove.dataset.remove = String(i);
+        remove.setAttribute("aria-label", "Flyt " + partById.get(buildSlots[i]).label + " til kortbanken");
+        slot.append(remove);
+      }
+      if (buildFeedback) {
+        const right = buildSlots[i] === p.id;
+        slot.classList.add(right ? "is-correct" : "is-wrong");
+        slot.append(el("span", "slot-feedback", right ? "✓ Rigtig plads" : buildSlots[i] ? "✕ Forkert plads" : "✕ Mangler"));
+      }
+      (p.flow ? $("#buildFlow") : $("#buildNotes")).append(slot);
+    });
+    updateSelection();
+  }
+  function updateSelection() {
+    $$(".build-card").forEach(b => {
+      const active = b.dataset.part === selectedCard;
+      b.classList.toggle("is-selected", active);
+      b.setAttribute("aria-pressed", String(active));
+    });
+  }
+  function clearBuildFeedback() {
+    buildFeedback = false;
+    $("#scorePanel").hidden = true;
+    $$(".build-slot").forEach(s => s.classList.remove("is-correct", "is-wrong"));
+    $$(".slot-feedback").forEach(s => s.remove());
+  }
+  function placeCard(id, index, focus = false) {
+    if (!partById.has(id) || index < 0 || index >= parts.length) return;
+    const old = buildSlots.indexOf(id),
+      displaced = buildSlots[index];
+    if (old === index) return;
+    if (old >= 0) buildSlots[old] = displaced;
+    buildSlots[index] = id;
+    selectedCard = null;
+    clearBuildFeedback();
     renderBuild();
+    $("#buildAnnouncement").textContent = partById.get(id).label + " er flyttet til " + (index < 7 ? "forløbsplads " + (index + 1) : "noteplads " + (index - 6)) + ".";
+    if (focus) $('[data-slot="' + index + '"]').focus();
+  }
+  $("#buildPanel").addEventListener("click", e => {
+    if (Date.now() < buildClickSuppressed) return;
+    const c = e.target.closest("[data-part]");
+    if (c) {
+      selectedCard = selectedCard === c.dataset.part ? null : c.dataset.part;
+      updateSelection();
+      $("#buildAnnouncement").textContent = selectedCard ? "Valgt: " + partById.get(selectedCard).label + ". Vælg nu en plads." : "Valget er ophævet.";
+      return;
+    }
+    const remove = e.target.closest("[data-remove]");
+    if (remove) {
+      const i = Number(remove.dataset.remove);
+      buildSlots[i] = null;
+      selectedCard = null;
+      clearBuildFeedback();
+      renderBuild();
+      $("#buildAnnouncement").textContent = "Kortet er tilbage i kortbanken.";
+      return;
+    }
+    const s = e.target.closest("[data-slot]");
+    if (s) {
+      if (selectedCard) placeCard(selectedCard, Number(s.dataset.slot), true);else $("#buildAnnouncement").textContent = "Vælg først et kort i kortbanken eller modellen.";
+    }
+  });
+  $("#buildPanel").addEventListener("keydown", e => {
+    if (e.key === "Escape") {
+      selectedCard = null;
+      updateSelection();
+    }
+  });
+  $("#buildPanel").addEventListener("change", clearBuildFeedback);
+  $("#resetBuild").addEventListener("click", () => {
+    buildSlots.fill(null);
+    selectedCard = null;
+    bankOrder = shuffled(parts.map(p => p.id));
+    $("#buildReceived").value = "";
+    $("#buildRead").value = "";
+    clearBuildFeedback();
+    renderBuild();
+    $("#buildAnnouncement").textContent = "Modellen er tømt, og kortene er blandet.";
+  });
 
-    // Modelscore: gennemsigtige delpoint og mangelliste for begge tilstande.
-    let scoreAnimation = 0;
-    function evaluateBuild() {
-      let correctlyPlaced = 0;
-      let correctLinks = 0;
-      let correctTypes = 0;
-      const missing = [];
-      buildSlots.forEach((id, index) => {
-        if (id === steps[index].id) correctlyPlaced++;
-        else missing.push("Plads " + (index + 1) + ": " + (id ? "Her skal være " : "Mangler ") + steps[index].buildLabel.toLowerCase() + ".");
-      });
-      for (let i = 0; i < 6; i++) {
-        if (!buildSlots[i] || !buildSlots[i + 1]) continue;
-        const firstIndex = steps.findIndex((step) => step.id === buildSlots[i]);
-        const secondIndex = steps.findIndex((step) => step.id === buildSlots[i + 1]);
-        if (secondIndex === firstIndex + 1) correctLinks++;
-      }
-      for (const step of steps.filter((item) => ["received", "read"].includes(item.type))) {
-        if (buildSlots.includes(step.id) && buildTypes[step.id] === step.type) correctTypes++;
-        else missing.push("Markér “" + step.buildLabel + "” som " + (step.type === "received" ? "brevsprække = modtaget." : "kundskab = læst."));
-      }
-      if (correctLinks < 6) missing.push("Rækkefølge: " + correctLinks + " af 6 overgange mellem nabotrin er rigtige.");
-      const placementPoints = correctlyPlaced * 10;
-      const orderPoints = Math.round(correctLinks / 6 * 20);
-      const conceptPoints = Math.round(correctTypes / 4 * 10);
-      evaluatedBuild = true; renderBuild();
-      return { score: placementPoints + orderPoints + conceptPoints, missing, parts: ["Placering " + placementPoints + "/70", "Rækkefølge " + orderPoints + "/20", "Begreber " + conceptPoints + "/10"], description: "Automatisk tjek: " + correctlyPlaced + " af 7 trin er korrekt placeret. " + correctTypes + " af 4 øjeblikke er markeret rigtigt." };
+  // Pointer-drag virker med mus, touch og pen. Klik + plads er altid et alternativ.
+  $("#buildPanel").addEventListener("pointerdown", e => {
+    const b = e.target.closest(".build-card[data-part]");
+    if (!b || e.button !== 0) return;
+    drag = {
+      id: b.dataset.part,
+      pointer: e.pointerId,
+      source: b,
+      startX: e.clientX,
+      startY: e.clientY,
+      x: e.clientX,
+      y: e.clientY,
+      active: false,
+      ghost: null
+    };
+  });
+  function updateDrag() {
+    if (!drag || !drag.active) {
+      dragFrame = 0;
+      return;
     }
-    function evaluateDrawing() {
-      const checked = $$("[data-step-check]:checked").length;
-      const orderValue = Number($("input[name='drawingOrder']:checked").value);
-      const orderPoints = Math.round(orderValue * checked / 7);
-      const conceptPoints = ($("#drawingMoments").checked ? 5 : 0) + ($("#drawingDeadline").checked ? 5 : 0);
-      const missing = [];
-      $$("[data-step-check]").forEach((input, index) => { if (!input.checked) missing.push("Trin " + (index + 1) + ": " + steps[index].checklist); });
-      if (orderValue < 20) missing.push("Øv hele rækkefølgen fra tilbud til læst accept.");
-      if (!$("#drawingMoments").checked) missing.push("Skeln mellem brevsprække = modtaget og kundskab = læst.");
-      if (!$("#drawingDeadline").checked) missing.push("Tilføj acceptfristen: tiden til at acceptere tilbuddet.");
-      return { score: checked * 10 + orderPoints + conceptPoints, missing, parts: ["Trin " + (checked * 10) + "/70", "Rækkefølge " + orderPoints + "/20", "Begreber " + conceptPoints + "/10"], description: "Din selvvurdering: " + checked + " af 7 trin er med. Scoren bygger på dine krydser og dit valg af rækkefølge — ikke billedgenkendelse." };
+    const edge = 65,
+      h = innerHeight;
+    if (drag.y < edge) scrollBy(0, -Math.min(14, (edge - drag.y) / 4));else if (drag.y > h - edge) scrollBy(0, Math.min(14, (drag.y - h + edge) / 4));
+    const target = document.elementFromPoint(drag.x, drag.y)?.closest(".build-slot");
+    $$(".build-slot.is-target").forEach(s => s.classList.remove("is-target"));
+    if (target) target.classList.add("is-target");
+    dragFrame = requestAnimationFrame(updateDrag);
+  }
+  document.addEventListener("pointermove", e => {
+    if (!drag || drag.pointer !== e.pointerId) return;
+    drag.x = e.clientX;
+    drag.y = e.clientY;
+    if (!drag.active && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) > 9) {
+      drag.active = true;
+      drag.source.classList.add("is-dragging");
+      drag.ghost = drag.source.cloneNode(true);
+      drag.ghost.classList.remove("is-dragging");
+      drag.ghost.classList.add("drag-ghost");
+      drag.ghost.removeAttribute("data-part");
+      drag.ghost.setAttribute("aria-hidden", "true");
+      drag.ghost.tabIndex = -1;
+      document.body.append(drag.ghost);
+      try {
+        drag.source.setPointerCapture(e.pointerId);
+      } catch {}
+      dragFrame = requestAnimationFrame(updateDrag);
     }
-    function animateScore(score) {
-      cancelAnimationFrame(scoreAnimation);
-      const circle = $("#scoreCircle");
-      circle.style.transition = "none"; circle.style.strokeDashoffset = "314.159";
-      $("#scoreValue").textContent = "0";
-      // En layoutlæsning sikrer, at en ny vurdering også starter fra nul.
-      circle.getBoundingClientRect();
-      circle.style.transition = "";
-      requestAnimationFrame(() => { circle.style.strokeDashoffset = String(314.159 * (1 - score / 100)); });
-      if (reducedMotion.matches) { $("#scoreValue").textContent = String(score); return; }
-      const start = performance.now();
-      const tick = (time) => {
-        const fraction = Math.min(1, (time - start) / 950);
-        $("#scoreValue").textContent = String(Math.round(score * (1 - Math.pow(1 - fraction, 3))));
-        if (fraction < 1) scoreAnimation = requestAnimationFrame(tick);
-      };
-      scoreAnimation = requestAnimationFrame(tick);
+    if (drag.active) {
+      e.preventDefault();
+      drag.ghost.style.left = e.clientX + 12 + "px";
+      drag.ghost.style.top = e.clientY + 12 + "px";
     }
-    function renderHistory() {
-      for (const mode of ["build", "draw"]) {
-        const hasAttempt = state.results.some((result) => result.mode === mode) || state.best[mode] > 0;
-        $(mode === "build" ? "#bestBuild" : "#bestDraw").textContent = hasAttempt ? state.best[mode] + "/100" : "—";
+  }, {
+    passive: false
+  });
+  function finishDrag(e, cancelled = false) {
+    if (!drag || drag.pointer !== e.pointerId) return;
+    const d = drag;
+    drag = null;
+    if (dragFrame) cancelAnimationFrame(dragFrame);
+    dragFrame = 0;
+    d.source.classList.remove("is-dragging");
+    d.ghost?.remove();
+    $$(".build-slot.is-target").forEach(s => s.classList.remove("is-target"));
+    if (!d.active) return;
+    buildClickSuppressed = Date.now() + 400;
+    if (cancelled) return;
+    const target = document.elementFromPoint(e.clientX, e.clientY),
+      slot = target?.closest(".build-slot");
+    if (slot) {
+      placeCard(d.id, Number(slot.dataset.index));
+    } else if (target?.closest("#buildBank")) {
+      const i = buildSlots.indexOf(d.id);
+      if (i >= 0) {
+        buildSlots[i] = null;
+        selectedCard = null;
+        clearBuildFeedback();
+        renderBuild();
+        $("#buildAnnouncement").textContent = "Kortet er tilbage i kortbanken.";
       }
-      $("#scoreHistory").replaceChildren();
-      $("#emptyHistory").hidden = state.results.length > 0;
-      const dateFormat = new Intl.DateTimeFormat("da-DK", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-      [...state.results].reverse().forEach((result) => {
-        const item = element("li"); const date = new Date(result.time);
-        const time = element("time", "", dateFormat.format(date)); time.dateTime = date.toISOString();
-        item.append(element("span", "history-mode", result.mode === "build" ? "Byg · automatisk" : "Tegn · selvvurdering"), time, element("strong", "", result.score + "/100"));
-        $("#scoreHistory").append(item);
-      });
     }
-    $("#checkModel").addEventListener("click", () => {
-      if (practiceMode === "draw" && !strokes.some((stroke) => stroke.tool === "pen")) {
-        $("#practiceMessage").textContent = "Tegn først din model på lærredet. Gennemgå derefter tjeklisten for at give din tegning en selvvurdering.";
-        $("#practiceMessage").hidden = false; return;
-      }
-      $("#practiceMessage").hidden = true;
-      const result = practiceMode === "build" ? evaluateBuild() : evaluateDrawing();
-      showAnswer(true);
-      $("#modelScore").hidden = false;
-      $("#scoreMode").textContent = practiceMode === "build" ? "BYG · AUTOMATISK TJEK" : "TEGN · SELVVURDERING";
-      $("#scoreAccessible").textContent = result.score + " af 100 point";
-      $("#scoreTitle").textContent = result.score === 100 ? "Du har styr på modellen!" : result.score >= 75 ? "Du er der næsten!" : result.score >= 40 ? "Godt på vej." : "Et godt sted at starte.";
-      $("#scoreDescription").textContent = result.description;
-      $("#scoreBreakdown").replaceChildren(...result.parts.map((part) => element("span", "", part)));
-      $("#scoreMissing").replaceChildren(...result.missing.map((item) => element("li", "", item)));
-      if (result.missing.length === 0) $("#scoreMissing").append(element("li", "", "Alle syv trin, rækkefølgen og begreberne er med. Prøv igen med facit skjult."));
-      state.results.push({ score: result.score, mode: practiceMode, time: Date.now() });
-      state.results = state.results.slice(-20);
-      state.best[practiceMode] = Math.max(state.best[practiceMode], result.score);
-      saveState(); renderHistory(); animateScore(result.score);
-      $("#scoreTitle").focus({ preventScroll: true });
-      $("#modelScore").scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
+  }
+  document.addEventListener("pointerup", e => finishDrag(e));
+  document.addEventListener("pointercancel", e => finishDrag(e, true));
+  function evaluateBuild() {
+    const right = parts.filter((p, i) => buildSlots[i] === p.id).length;
+    const symbolPoints = ($("#buildReceived").value === "received" ? 10 : 0) + ($("#buildRead").value === "read" ? 10 : 0);
+    const missing = parts.flatMap((p, i) => buildSlots[i] === p.id ? [] : [(i < 7 ? "Forløbsplads " + (i + 1) : "Noteplads " + (i - 6)) + ": " + p.label]);
+    if ($("#buildReceived").value !== "received") missing.push("Kuvert = modtaget.");
+    if ($("#buildRead").value !== "read") missing.push("Øje = læst.");
+    return {
+      score: Math.round(80 * right / parts.length + symbolPoints),
+      missing,
+      description: right + " af " + parts.length + " dele står på rette plads. Symbolerne giver " + symbolPoints + " af 20 point."
+    };
+  }
+  function evaluateDrawing() {
+    const checked = $$("[data-part-check]").map(n => n.checked);
+    const total = checked.filter(Boolean).length,
+      flowCount = checked.slice(0, 7).filter(Boolean).length;
+    const order = Number($("input[name=drawingOrder]:checked").value);
+    const symbols = ($("#drawReceived").checked ? 5 : 0) + ($("#drawRead").checked ? 5 : 0);
+    const score = Math.round(70 * total / parts.length + 20 * order * flowCount / 7 + symbols);
+    const missing = parts.flatMap((p, i) => checked[i] ? [] : [p.label]);
+    if (order < 1 || flowCount < 7) missing.push("Hele forløbet i rigtig rækkefølge.");
+    if (!$("#drawReceived").checked) missing.push("Kuvert = modtaget.");
+    if (!$("#drawRead").checked) missing.push("Øje = læst.");
+    return {
+      score,
+      missing,
+      description: "Selvvurdering: " + total + " af " + parts.length + " dele er markeret. Rækkefølgen er vægtet efter de forløbsdele, du har med."
+    };
+  }
+  function renderHistory() {
+    for (const k of ["build", "draw"]) $("#best" + (k === "build" ? "Build" : "Draw")).textContent = state.results.some(r => r.mode === k) || state.best[k] > 0 ? state.best[k] + " / 100" : "—";
+    $("#scoreHistory").replaceChildren();
+    $("#historyEmpty").hidden = state.results.length > 0;
+    for (const r of [...state.results].reverse()) {
+      const li = el("li");
+      const time = el("time", "", new Intl.DateTimeFormat("da-DK", {
+        dateStyle: "short",
+        timeStyle: "short"
+      }).format(new Date(r.time)));
+      time.dateTime = new Date(r.time).toISOString();
+      li.append(el("span", "", r.mode === "build" ? "Byg modellen" : "Tegning · selvvurdering"), time, el("strong", "", r.score + " / 100"));
+      $("#scoreHistory").append(li);
+    }
+  }
+  $("#checkModel").addEventListener("click", () => {
+    const result = mode === "build" ? evaluateBuild() : evaluateDrawing();
+    if (mode === "build") {
+      buildFeedback = true;
+      renderBuild();
+    }
+    showAnswer(true);
+    $("#scorePanel").hidden = false;
+    $("#scoreMode").textContent = mode === "build" ? "BYGGETILSTAND" : "TEGNING · SELVVURDERING";
+    $("#scoreTitle").textContent = result.score === 100 ? "Hele modellen er med!" : result.score >= 75 ? "Du er der næsten!" : result.score >= 40 ? "Godt på vej." : "Byg videre – én del ad gangen.";
+    $("#scoreDescription").textContent = result.description;
+    $("#missingParts").replaceChildren(...result.missing.map(x => el("li", "", x)));
+    countUp($("#modelScore"), result.score, 1000);
+    $("#scoreCircle").style.transition = "none";
+    $("#scoreCircle").style.strokeDashoffset = "314.159";
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      $("#scoreCircle").style.transition = motion.matches ? "none" : "stroke-dashoffset 1s cubic-bezier(.2,.75,.2,1)";
+      $("#scoreCircle").style.strokeDashoffset = String(314.159 * (1 - result.score / 100));
+    }));
+    state.results.push({
+      mode,
+      score: result.score,
+      time: Date.now(),
+      version: MODEL_VERSION
     });
+    state.results = state.results.slice(-20);
+    state.best[mode] = Math.max(state.best[mode], result.score);
+    save();
     renderHistory();
+    $("#scoreTitle").focus({
+      preventScroll: true
+    });
+    $("#scorePanel").scrollIntoView({
+      behavior: motion.matches ? "auto" : "smooth",
+      block: "nearest"
+    });
+  });
 
-    // Fuld model som selvstændig SVG. Ingen fonte, billeder eller stilarter hentes.
-    function escapeXml(value) {
-      return String(value).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[c]));
-    }
-    function graphicPalette(forceLight) {
-      const css = getComputedStyle(document.documentElement);
-      const palette = { bg: "#ffffff", text: "#1c263b", muted: "#526078", line: "#a5afbf", number: "#ffffff" };
-      const dark = !forceLight && (document.documentElement.dataset.theme === "dark" || (!document.documentElement.dataset.theme && systemTheme.matches));
-      if (dark) Object.assign(palette, { bg: "#1a202d", text: "#edf0fa", muted: "#bbc5d6", line: "#8190aa", number: "#151b36" });
-      for (const [kind, type] of Object.entries(TYPES)) palette[kind] = {
-        ink: forceLight ? type.ink : css.getPropertyValue("--" + kind).trim() || type.ink,
-        soft: forceLight ? type.soft : css.getPropertyValue("--" + kind + "-soft").trim() || type.soft
-      };
-      return palette;
-    }
-    function svgIcon(kind, x, y, color, size = 24) {
-      return '<g transform="translate(' + x + ' ' + y + ') scale(' + size / 24 + ')" fill="none" stroke="' + color + '" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + ICONS[kind] + '</g>';
-    }
-    function makeModelSvg(forceLight = false, prefix = "main", selected = -1) {
-      const p = graphicPalette(forceLight);
-      const lines = [
-        ["Tilbudsgiver sender sit tilbud."],
-        ["Tilbuddet er kommet frem til", "tilbudsmodtagerens indbakke."],
-        ["Modtageren læser tilbuddet.", "Tilbudsgiver bliver bundet."],
-        ["Acceptere, afslå eller lade", "tilbuddet udløbe."],
-        ["Modtageren siger ja og", "sender en accept tilbage."],
-        ["Accepten er fremme inden fristen.", "Tilbudsgiver er bundet."],
-        ["Tilbudsgiver læser accepten.", "Nu er begge parter bundet."]
-      ];
-      const positions = [{ x: 40, y: 180 }, { x: 570, y: 295 }, { x: 570, y: 410 }, { x: 570, y: 525 }, { x: 570, y: 640 }, { x: 40, y: 755 }, { x: 40, y: 870 }];
-      let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="1100" viewBox="0 0 1100 1100" role="img" aria-labelledby="' + prefix + '-title ' + prefix + '-desc" font-family="Arial, Helvetica, sans-serif">';
-      svg += '<title id="' + prefix + '-title">Aftalemodellens syv trin</title><desc id="' + prefix + '-desc">To spor: tilbudsgiver til venstre, tilbudsmodtager til højre. 1: tilbud sendes. 2: tilbud modtages. 3: tilbud læses og tilbudsgiver bliver bundet. 4: betænkningstid. 5: accept sendes retur. 6: accept kommer frem inden fristen. 7: accept læses; begge parter er bundet.</desc>';
-      svg += '<rect width="1100" height="1100" rx="24" fill="' + p.bg + '"/><defs><marker id="' + prefix + '-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 10 5 0 10Z" fill="' + p.line + '"/></marker></defs>';
-      svg += '<text x="40" y="48" font-size="31" font-weight="700" fill="' + p.text + '">Aftalemodellen</text><text x="40" y="80" font-size="18" fill="' + p.muted + '">Følg tallene. Modtaget er ikke det samme som læst.</text>';
-      for (const [kind, x] of [["giver", 40], ["recipient", 570]]) {
-        svg += '<rect x="' + x + '" y="108" width="430" height="52" rx="12" fill="' + p[kind].soft + '"/>' + svgIcon(kind, x + 18, 121, p[kind].ink, 24) + '<text x="' + (x + 58) + '" y="141" font-size="21" font-weight="700" fill="' + p[kind].ink + '">' + TYPES[kind].label + '</text>';
-      }
-      svg += '<path d="M255 164v830M785 164v830" stroke="' + p.line + '" stroke-width="1.5" stroke-dasharray="5 8" opacity=".55"/>';
-      const arrows = ["M470 226H785V288", "M785 387v16", "M785 502v16", "M785 617v16", "M570 686H255v62", "M255 847v16"];
-      arrows.forEach((path) => { svg += '<path d="' + path + '" fill="none" stroke="' + p.line + '" stroke-width="2.5" marker-end="url(#' + prefix + '-arrow)"/>'; });
-      svg += '<text x="505" y="211" font-size="18" fill="' + p.giver.ink + '">Tilbud →</text><text x="315" y="670" font-size="18" fill="' + p.recipient.ink + '">← Accept retur</text>';
-      svg += '<rect x="1040" y="226" width="12" height="575" rx="6" fill="' + p.time.soft + '" stroke="' + p.time.ink + '" stroke-width="2"/><path d="M1032 226h28m-28 575h28" stroke="' + p.time.ink + '" stroke-width="2"/><text transform="translate(1080 700) rotate(-90)" font-size="19" font-weight="700" fill="' + p.time.ink + '">Acceptfrist · tid til at acceptere</text>';
-      steps.forEach((step, i) => {
-        const { x, y } = positions[i]; const kind = kindOfStep(i); const colors = p[kind];
-        svg += '<g data-graphic-step="' + i + '" class="' + (i === selected ? "is-graphic-active" : "") + '"><rect class="svg-card" x="' + x + '" y="' + y + '" width="430" height="92" rx="13" fill="' + colors.soft + '" stroke="' + colors.ink + '" stroke-width="' + (i === selected ? 3 : 1) + '"/>';
-        svg += '<circle cx="' + (x + 24) + '" cy="' + (y + 26) + '" r="15" fill="' + colors.ink + '"/><text x="' + (x + 24) + '" y="' + (y + 32) + '" font-size="17" text-anchor="middle" font-weight="700" fill="' + p.number + '">' + (i + 1) + '</text>';
-        svg += svgIcon(kind, x + 49, y + 15, colors.ink, 23);
-        svg += '<text x="' + (x + 83) + '" y="' + (y + 33) + '" font-size="20" font-weight="700" fill="' + colors.ink + '">' + escapeXml(step.title) + '</text>';
-        lines[i].forEach((line, n) => { svg += '<text x="' + (x + 22) + '" y="' + (y + 58 + n * 22) + '" font-size="18" fill="' + p.text + '">' + escapeXml(line) + '</text>'; });
-        svg += '</g>';
+  // Store visninger og eksport. SVG'en er selvstændig uden eksterne ressourcer.
+  function openDialog(id) {
+    const d = $("#" + id);
+    if (!d.open) d.showModal();
+    document.body.classList.add("dialog-open");
+  }
+  function openGraphic(region = "all") {
+    pictureZoom = 1;
+    $("#zoomGraphicContent").innerHTML = modelSvg(false, "zoom",typeof region==="string"?region:"all");
+    openDialog("graphicDialog");
+    fitGraphic();
+  }
+  function applyZoom() {
+    $("#zoomGraphicContent").style.width = pictureZoom * 100 + "%";
+    $("#graphicZoomValue").textContent = Math.round(pictureZoom * 100) + " %";
+    $("#graphicZoomOut").disabled = pictureZoom <= .5;
+    $("#graphicZoomIn").disabled = pictureZoom >= 4;
+  }
+  $("#graphicZoomTarget").addEventListener("click", openGraphic);
+  $("#zoomGraphic").addEventListener("click", openGraphic);
+  function fitGraphic() {
+    const viewport = $("#graphicViewport");
+    const css = getComputedStyle(viewport);
+    const width = viewport.clientWidth - parseFloat(css.paddingLeft) - parseFloat(css.paddingRight);
+    const height = parseFloat(css.maxHeight) - parseFloat(css.paddingTop) - parseFloat(css.paddingBottom) - 4;
+    const ratio = height / (width * 1024 / 1536);
+    pictureZoom = Math.max(.5, Math.min(1, Math.floor(ratio * 4) / 4));
+    applyZoom();
+    viewport.scrollLeft = 0;
+    viewport.scrollTop = 0;
+  }
+  $("#graphicZoomOut").addEventListener("click", () => {
+    pictureZoom = Math.max(.5, pictureZoom - .25);
+    applyZoom();
+  });
+  $("#graphicZoomIn").addEventListener("click", () => {
+    pictureZoom = Math.min(4, pictureZoom + .25);
+    applyZoom();
+  });
+  $("#graphicFit").addEventListener("click", () => {
+    fitGraphic();
+  });
+  async function downloadPng() {
+    const button = $("#downloadGraphic");
+    button.disabled = true;
+    $("#graphicStatus").textContent = "Gør billedet klar…";
+    let sourceUrl = "";
+    try {
+      const source = new Blob([modelSvg(true, "png")], {
+        type: "image/svg+xml;charset=utf-8"
       });
-      svg += '<rect x="40" y="1001" width="960" height="64" rx="12" fill="' + p.received.soft + '"/>' + svgIcon("received", 60, 1020, p.received.ink, 26) + '<text x="100" y="1039" font-size="20" font-weight="700" fill="' + p.received.ink + '">Brevsprække = modtaget</text>' + svgIcon("read", 550, 1020, p.read.ink, 26) + '<text x="590" y="1039" font-size="20" font-weight="700" fill="' + p.read.ink + '">Kundskab = læst</text></svg>';
-      return svg;
+      sourceUrl = URL.createObjectURL(source);
+      const img = new Image();
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = sourceUrl;
+      });
+      const out = document.createElement("canvas");
+      out.width = 3840;
+      out.height = 2560;
+      const context = out.getContext("2d");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, out.width, out.height);
+      context.drawImage(img, 0, 0, out.width, out.height);
+      const blob = await new Promise((resolve, reject) => out.toBlob(b => b ? resolve(b) : reject(new Error("PNG")), "image/png"));
+      if (pngUrl) URL.revokeObjectURL(pngUrl);
+      pngUrl = URL.createObjectURL(blob);
+      const a = $("#pngFallback");
+      a.href = pngUrl;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.download = "aftalemodellen-whiteboard.png";
+      a.hidden = false;
+      a.click();
+      $("#graphicStatus").textContent = "PNG-billedet er klar. Brug linket nedenunder, hvis download ikke starter.";
+    } catch {
+      $("#graphicStatus").textContent = "Billedet kunne ikke eksporteres i denne browser. Prøv Print / gem som PDF.";
+    } finally {
+      button.disabled = false;
+      if (sourceUrl) URL.revokeObjectURL(sourceUrl);
     }
-    let pictureZoom = 1;
-    let pngUrl = null;
-    function refreshGraphics() {
-      $("#modelGraphic").innerHTML = makeModelSvg(false, "overview-graphic", currentStep);
-      if ($("#graphicDialog").open) $("#zoomGraphicContent").innerHTML = makeModelSvg(false, "zoom-graphic", currentStep);
-      if ($("#presentDialog").open) renderSlide();
+  }
+  $("#downloadGraphic").addEventListener("click", downloadPng);
+  $("#printGraphic").addEventListener("click", () => {
+    $("#printGraphicContent").innerHTML = modelSvg(true, "print");
+    window.print();
+  });
+  function openCheat() {
+    const route = el("section");
+    route.append(el("h3", "", "Frem. Tænk. Tilbage."));
+    const picture = el("button", "cheat-picture");
+    picture.type = "button";
+    picture.setAttribute("aria-label", "Åbn whiteboardbilledet i stor visning");
+    picture.innerHTML = modelSvg(false, "cheat");
+    picture.addEventListener("click", () => openGraphic());
+    route.append(picture, el("p", "source-note", "TG = tilbudsgiver. TM = tilbudsmodtager. Kuvert = modtaget. Øje = læst. Tryk på billedet for at zoome."));
+    const side = el("section");
+    side.append(el("h3", "", "Tavlens noter"));
+    const n = el("div", "cheat-notes");
+    for (const note of notes) {
+      const card = el("div", "cheat-note");
+      card.dataset.kind = note.kind;
+      card.append(el("strong", "", note.title), el("span", "", note.id === "legal" ? "Rimelig betænkningstid + frem- og tilbagesendelsestid." : note.id === "withdraw" ? "Tilbud/accept: inden kundskabsøjeblikket." : note.id === "late" ? "Nyt tilbud." : note.id === "different" ? "Modbud." : note.id === "claim" ? "Forbundet med § 4 og § 6." : "Fast frist."));
+      n.append(card);
     }
-    function applyPictureZoom() {
-      const viewport = $("#graphicViewport"); const style = getComputedStyle(viewport);
-      const availableWidth = viewport.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-      const availableHeight = viewport.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      const fitSize = Math.max(180, Math.min(availableWidth, availableHeight));
-      $("#zoomGraphicContent").style.width = Math.round(fitSize * pictureZoom) + "px";
-      $("#graphicZoomValue").textContent = Math.round(pictureZoom * 100) + " %";
-      $("#graphicZoomOut").disabled = pictureZoom <= 1;
-      $("#graphicZoomIn").disabled = pictureZoom >= 4;
-    }
-    function openDialog(id) {
-      const dialog = $("#" + id);
-      if (!dialog.open) {
-        stopModel(); stopSpeech(false);
-        if (typeof dialog.showModal === "function") dialog.showModal();
-        else { dialog.setAttribute("open", ""); dialog.setAttribute("aria-modal", "true"); }
-      }
-      document.body.classList.add("dialog-open");
-    }
-    function openGraphic() {
-      openDialog("graphicDialog");
-      $("#zoomGraphicContent").innerHTML = makeModelSvg(false, "zoom-graphic", currentStep);
-      pictureZoom = window.innerWidth < 650 ? 2.5 : 1; applyPictureZoom();
-      $("#graphicViewport").scrollTop = 0; $("#graphicViewport").scrollLeft = 0;
-    }
-    async function downloadPng() {
-      const button = $("#downloadGraphic"); button.disabled = true;
-      $("#graphicMessage").textContent = "Gør billedet klar…";
-      const sourceUrl = URL.createObjectURL(new Blob([makeModelSvg(true, "png")], { type: "image/svg+xml;charset=utf-8" }));
-      try {
-        const picture = new Image();
-        await new Promise((resolve, reject) => { picture.onload = resolve; picture.onerror = reject; picture.src = sourceUrl; });
-        const output = document.createElement("canvas"); output.width = 2200; output.height = 2200;
-        const ctx = output.getContext("2d"); if (!ctx) throw new Error("canvas-unavailable");
-        ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, output.width, output.height); ctx.drawImage(picture, 0, 0, output.width, output.height);
-        const blob = await new Promise((resolve) => output.toBlob(resolve, "image/png"));
-        if (!blob) throw new Error("png-unavailable");
-        if (pngUrl) URL.revokeObjectURL(pngUrl);
-        pngUrl = URL.createObjectURL(blob);
-        const link = $("#lastDownload"); link.href = pngUrl; link.download = "Aftalemodellen-model.png"; link.hidden = false;
-        link.click();
-        $("#graphicMessage").textContent = "Billedet er klar i 2200 × 2200 px. Brug linket her, hvis din browser ikke hentede det automatisk.";
-      } catch {
-        $("#graphicMessage").textContent = "Billedet kunne ikke gemmes her. Prøv igen, eller brug Print/gem som PDF.";
-      } finally { URL.revokeObjectURL(sourceUrl); button.disabled = false; }
-    }
-    function printModel() {
-      $("#printGraphicContent").innerHTML = makeModelSvg(true, "print");
-      document.body.classList.add("is-print-model");
-      try { window.print(); } catch { document.body.classList.remove("is-print-model"); toast("Print kunne ikke åbnes i denne browser."); }
-    }
-
-    const teacherQuestions = [
-      { question: "Kan du forklare modellen kort?", answer: "Tilbudsgiver sender et tilbud. Det modtages og læses. Efter betænkningstid sender modtageren en accept, som kommer frem inden fristen og læses. Nu er begge bundet." },
-      { question: "Hvad er forskellen på modtaget og læst?", answer: "Modtaget er brevsprækkeøjeblikket: meddelelsen er kommet frem. Læst er kundskabsøjeblikket: modtageren kender indholdet." },
-      { question: "Hvornår bliver tilbudsgiver bundet?", answer: "I trin 3, når tilbudsmodtageren læser tilbuddet. Det er kundskabsøjeblikket." },
-      { question: "Hvornår er begge parter bundet?", answer: "I trin 7, når tilbudsgiver læser accepten." },
-      { question: "Hvad kan modtageren gøre i betænkningstiden?", answer: "Acceptere, afslå eller lade tilbuddet udløbe." },
-      { question: "Hvad er en acceptfrist?", answer: "Den tid, man har til at acceptere tilbuddet. I trin 6 skal accepten være kommet frem inden fristen." },
-      { question: "Hvordan skelner du mellem de tre slags regler?", answer: "Deklaratoriske regler kan fraviges. Præceptive regler kan ikke fraviges. Beskyttelsespræceptive regler må fraviges til den svage parts fordel." },
-      { question: "Hvornår binder et løfte og et påbud?", answer: "Et løfte binder, når det er læst: kundskab. Et påbud binder, når det er modtaget: brevsprække." }
-    ];
-    function makeCheatSheet() {
-      const wrap = element("div", "cheat-grid");
-      const sequence = element("section", "cheat-sequence"); sequence.append(element("h3", "", "De syv trin"));
-      const list = element("ol", "cheat-steps");
-      const short = ["Tilbud sendes", "Tilbud modtages", "Tilbud læses · TG bundet", "Betænkningstid: ja, nej, udløb", "Accept sendes retur", "Accept fremme inden fristen", "Accept læses · begge bundet"];
-      steps.forEach((step, i) => { const li = element("li", "role-" + kindOfStep(i)); li.append(element("span", "cheat-number", String(i + 1)), iconNode(kindOfStep(i)), element("span", "", short[i])); list.append(li); });
-      sequence.append(list); wrap.append(sequence);
-      const key = element("section", "cheat-key"); key.append(element("h3", "", "Det, du skal sige præcist"));
-      for (const kind of ["received", "read"]) key.append(semanticTag(kind));
-      key.append(element("p", "cheat-binding", "3: Tilbuddet læses → tilbudsgiver bundet."), element("p", "cheat-binding", "7: Accepten læses → begge bundet."));
-      const rules = element("div", "cheat-rules");
-      for (const kind of ["declarative", "mandatory", "protective"]) rules.append(semanticTag(kind));
-      key.append(rules); wrap.append(key);
-      const deadline = element("p", "cheat-deadline role-time"); deadline.append(iconNode("time"), document.createTextNode("Acceptfrist = den tid, man har til at acceptere tilbuddet."));
-      const bottom = element("p", "cheat-bottom", "Løfte: læst (kundskab). Påbud: modtaget (brevsprække). Skriftlig og mundtlig aftale: begge bindende.");
-      return [wrap, deadline, bottom];
-    }
-    function openCheat() { $("#cheatContent").replaceChildren(...makeCheatSheet()); openDialog("cheatDialog"); }
-    let slideIndex = 0;
-    const SLIDE_COUNT = 12;
-    function renderSlide() {
-      const content = $("#presentationContent"); content.replaceChildren();
-      if (slideIndex === 0) {
-        content.append(element("p", "eyebrow", "START HER"), element("h3", "slide-title", "Hvornår har vi en bindende aftale?"), element("p", "slide-lead", "Aftalemodellen følger et tilbud og en accept mellem to parter."));
-        const tags = element("div", "semantic-tags slide-tags"); tags.append(semanticTag("giver"), semanticTag("recipient")); content.append(tags);
-        content.append(element("p", "slide-keyline", "Syv trin. Modtaget og læst er to forskellige øjeblikke."));
-      } else if (slideIndex === 1) {
-        content.classList.add("slide-graphic-only");
-        const graphic = element("div", "slide-whole-model"); graphic.innerHTML = makeModelSvg(false, "slide-full"); content.append(graphic);
-      } else if (slideIndex >= 2 && slideIndex <= 8) {
-        const index = slideIndex - 2; const step = steps[index];
-        const split = element("div", "slide-split"); const copy = element("div", "slide-copy");
-        copy.append(element("p", "eyebrow", "TRIN " + (index + 1) + " AF 7"), semanticTag(kindOfStep(index), true), element("h3", "slide-title", step.title), element("p", "slide-lead", step.description), element("p", "slide-binding", step.binding));
-        const diagram = element("div", "slide-mini-model"); diagram.innerHTML = makeModelSvg(false, "slide-step", index);
-        split.append(copy, diagram); content.append(split);
-      } else if (slideIndex === 9) {
-        content.append(element("p", "eyebrow", "DE TRE REGLER"), element("h3", "slide-title", "Ændr. Følg. Beskyt."));
-        const rules = element("div", "slide-rule-grid");
-        for (const kind of ["declarative", "mandatory", "protective"]) {
-          const card = element("article", "slide-rule"); card.append(semanticTag(kind, true), element("p", "", TYPES[kind].hint + ".")); rules.append(card);
-        }
-        content.append(rules);
-      } else if (slideIndex === 10) {
-        content.append(element("p", "eyebrow", "HUSK FORSKELLEN"), element("h3", "slide-title", "Breve i kassen. Knuden i hovedet."));
-        const tags = element("div", "semantic-tags slide-tags"); tags.append(semanticTag("received"), semanticTag("read")); content.append(tags);
-        content.append(element("p", "slide-lead", "Send. Frem. Læs. Tænk. Ja. Frem. Læs."), element("p", "slide-keyline", "Tilbudsgiver bindes i trin 3. Begge parter er bundet i trin 7."));
-      } else { content.append(...makeCheatSheet()); }
-      content.classList.toggle("slide-graphic-only", slideIndex === 1);
-      $("#slideCounter").textContent = (slideIndex + 1) + " / " + SLIDE_COUNT;
-      $("#presentationProgress").value = slideIndex + 1;
-      $("#previousSlide").disabled = slideIndex === 0;
-      $("#nextSlide").textContent = slideIndex === SLIDE_COUNT - 1 ? "Afslut ✓" : "Næste →";
-      content.scrollTop = 0;
-    }
-    function moveSlide(delta) {
-      if (slideIndex === SLIDE_COUNT - 1 && delta > 0) { $("#presentDialog").close(); return; }
-      slideIndex = Math.max(0, Math.min(SLIDE_COUNT - 1, slideIndex + delta)); renderSlide();
-    }
-
-    // Oplæsning: én kø, korte ytringer og et token, der afviser gamle callbacks.
-    // Korte ytringer gør lange oplæsninger mere stabile på telefoner.
-    const speechEngine = "speechSynthesis" in window && typeof window.SpeechSynthesisUtterance === "function" ? window.speechSynthesis : null;
-    const reader = { entries: [], index: 0, chunk: 0, parts: [], status: "idle", rate: 1, token: 0, utterance: null, boundary: 0, activeTarget: null };
-    let danishVoice = null;
-    let resumeTimer = null;
-    function loadVoices() {
-      if (!speechEngine) return;
-      let voices = [];
-      try { voices = speechEngine.getVoices(); } catch { /* Stemmeoversigten kan være forsinket. */ }
-      const danish = voices.filter((voice) => /^da(?:[-_]|$)/i.test(voice.lang));
-      danishVoice = danish.find((voice) => voice.localService && /^da[-_]DK$/i.test(voice.lang)) || danish.find((voice) => /^da[-_]DK$/i.test(voice.lang)) || danish[0] || null;
-      $("#readerVoice").textContent = danishVoice ? "Stemme: " + danishVoice.name + " · dansk" + (danishVoice.localService ? " · lokal på enheden" : "") : "Ingen dansk stemme fundet endnu. Browseren forsøger med da-DK. Tilgængelige stemmer afhænger af din enhed.";
-    }
-    function readingParts(text) {
-      const sentences = text.replace(/\s+/g, " ").trim().match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text];
-      const parts = []; let part = "";
-      for (const sentence of sentences) {
-        for (const word of sentence.trim().split(/\s+/)) {
-          if (part.length + word.length > 180 && part) { parts.push(part.trim()); part = ""; }
-          part += word + " ";
-        }
-        if (part.length >= 90) { parts.push(part.trim()); part = ""; }
-      }
-      if (part.trim()) parts.push(part.trim());
-      return parts.length ? parts : ["Dette afsnit er tomt."];
-    }
-    function removeSpeechHighlight() {
-      $$(".is-speaking").forEach((target) => target.classList.remove("is-speaking")); reader.activeTarget = null;
-    }
-    function openReader() {
-      $("#readerDock").classList.remove("is-minimized"); $("#readerPanel").hidden = false;
-      document.body.classList.add("reader-expanded");
-    }
-    function updateReader() {
-      const entry = reader.entries[reader.index];
-      $("#readerTitle").textContent = entry ? entry.title : "Læs det hele op";
-      $("#readerCounter").textContent = (reader.entries.length ? reader.index + 1 : 0) + " / " + reader.entries.length;
-      $("#readerPlay").textContent = reader.status === "paused" ? "Fortsæt" : reader.status === "ended" ? "Afspil igen" : "Afspil";
-      $("#readerPlay").disabled = !speechEngine || reader.status === "speaking";
-      $("#readerPause").disabled = !speechEngine || reader.status !== "speaking";
-      $("#readerPause").setAttribute("aria-pressed", String(reader.status === "paused"));
-      $("#readerStop").disabled = !speechEngine || ["idle", "ended"].includes(reader.status);
-      $("#readerPrevious").disabled = !speechEngine || reader.index === 0;
-      $("#readerNext").disabled = !speechEngine || reader.index >= reader.entries.length - 1;
-      $("#readerRate").disabled = !speechEngine;
-      if (!speechEngine) $("#readerStatus").textContent = "Din browser understøtter ikke oplæsning. Du kan stadig bruge alle øvelser, modelbilledet og fremlæggelsesvisningen.";
-    }
-    function cancelUtterance() {
-      reader.token++; clearTimeout(resumeTimer); reader.utterance = null;
-      if (speechEngine) { try { speechEngine.cancel(); } catch { /* En blokeret taleservice må ikke stoppe øvelserne. */ } }
-    }
-    function stopSpeech(announce = true) {
-      cancelUtterance(); reader.status = "idle"; reader.chunk = 0; reader.parts = []; reader.boundary = 0;
-      removeSpeechHighlight();
-      if (studyToolsReady) {
-        if (announce) $("#readerStatus").textContent = "Oplæsningen er stoppet.";
-        updateReader();
-      }
-    }
-    function markSpeechEntry(entry) {
-      removeSpeechHighlight();
-      const target = entry.target;
-      if (target && target.isConnected) {
-        if (target.tagName === "DETAILS") target.open = true;
-        target.closest(".reveal")?.classList.add("is-visible"); target.classList.add("is-speaking"); reader.activeTarget = target;
-        // Scroll aldrig bag en åben modal. I almindelig læsevisning følges teksten.
-        if (!$$("dialog[open]").length) target.scrollIntoView({ behavior: reducedMotion.matches ? "instant" : "smooth", block: "center" });
-      }
-      if (entry.activate) entry.activate();
-    }
-    function speakChunk() {
-      if (!speechEngine || !reader.entries.length) { openReader(); updateReader(); return; }
-      const entry = reader.entries[reader.index];
-      if (!reader.parts.length) reader.parts = readingParts(entry.title + ". " + entry.text);
-      cancelUtterance();
-      const token = reader.token;
-      const utterance = new SpeechSynthesisUtterance(reader.parts[reader.chunk]);
-      // Behold referencen, så mobilbrowsere ikke mister den aktive ytring.
-      reader.utterance = utterance; reader.boundary = 0;
-      utterance.lang = "da-DK"; utterance.rate = reader.rate; utterance.pitch = 1; utterance.volume = 1;
-      if (danishVoice) utterance.voice = danishVoice;
-      utterance.onboundary = (event) => { if (token === reader.token && Number.isFinite(event.charIndex)) reader.boundary = event.charIndex; };
-      utterance.onstart = () => { if (token === reader.token) { reader.status = "speaking"; $("#readerStatus").textContent = "Læser: " + entry.title; updateReader(); } };
-      utterance.onend = () => {
-        if (token !== reader.token || reader.status !== "speaking") return;
-        reader.chunk++;
-        if (reader.chunk < reader.parts.length) { speakChunk(); return; }
-        if (reader.index < reader.entries.length - 1) {
-          reader.index++; reader.chunk = 0; reader.parts = []; markSpeechEntry(reader.entries[reader.index]); speakChunk();
-        } else {
-          reader.status = "ended"; reader.utterance = null; removeSpeechHighlight();
-          $("#readerStatus").textContent = "Færdig. Du kan afspille igen eller vælge et enkelt kort."; updateReader();
-        }
-      };
-      utterance.onerror = (event) => {
-        if (token !== reader.token || ["canceled", "interrupted"].includes(event.error)) return;
-        reader.status = "idle"; reader.utterance = null; removeSpeechHighlight();
-        $("#readerStatus").textContent = ["voice-unavailable", "language-unavailable", "synthesis-unavailable"].includes(event.error) ? "En talestemme er ikke tilgængelig her. Prøv en anden browser eller en dansk stemme på enheden." : "Browseren kunne ikke starte oplæsningen. Tryk Afspil for at prøve igen.";
-        updateReader();
-      };
-      try {
-        reader.status = "speaking"; updateReader();
-        $("#readerStatus").textContent = "Starter: " + entry.title;
-        if (speechEngine.paused) speechEngine.resume();
-        speechEngine.speak(utterance);
-      } catch {
-        reader.status = "idle"; removeSpeechHighlight(); $("#readerStatus").textContent = "Oplæsningen kunne ikke startes. Tryk Afspil igen."; updateReader();
-      }
-    }
-    function playReader() {
-      openReader();
-      if (!speechEngine) { updateReader(); return; }
-      loadVoices();
-      if (!reader.entries.length) reader.entries = allReadingEntries();
-      if (reader.status === "paused" && reader.utterance) {
-        reader.status = "speaking"; speechEngine.resume(); updateReader(); $("#readerStatus").textContent = "Fortsætter: " + reader.entries[reader.index].title;
-        // Nogle mobilbrowsere afslutter i stedet for at pause. Genstart i så fald
-        // kun resten af den korte ytring fra senest registrerede ord.
-        resumeTimer = setTimeout(() => {
-          if (reader.status === "speaking" && !speechEngine.speaking) {
-            const rest = reader.parts[reader.chunk].slice(reader.boundary).trim();
-            if (rest) reader.parts[reader.chunk] = rest; speakChunk();
-          }
-        }, 600);
+    side.append(n);
+    $("#cheatContent").replaceChildren(route, side);
+    openDialog("cheatDialog");
+  }
+  $("#openCheat").addEventListener("click", openCheat);
+  $("#openCheatMemory").addEventListener("click", openCheat);
+  $("#presentCheat").addEventListener("click", openCheat);
+  const slides = [
+  {
+    "title": "Hele modellen",
+    "region": "all",
+    "kind": "giver",
+    "text": "Dette er dit whiteboardbillede. Følg tilbuddet ud, tiden hos TM og accepten tilbage.",
+    "items": [
+      "Frem. Tænk. Tilbage.",
+      "Slut med frister og noter."
+    ]
+  },
+  {
+    "title": "1. TG sender tilbud",
+    "region": "send",
+    "kind": "giver",
+    "text": "Start øverst til venstre. TG er tilbudsgiver og sender tilbuddet.",
+    "items": [
+      "Peg på TG.",
+      "Fortæl, hvem tilbuddet skal til: TM."
+    ]
+  },
+  {
+    "title": "2. Fremsendelsestid",
+    "region": "outbound",
+    "kind": "time",
+    "text": "Følg den blå pil mod højre. Den viser tilbuddets vej fra TG til TM.",
+    "items": [
+      "Frem = tilbuddet ud."
+    ]
+  },
+  {
+    "title": "3. TM modtager tilbud",
+    "region": "receive",
+    "kind": "received",
+    "text": "Nu er du hos TM øverst til højre. Hold de to symboler adskilt.",
+    "items": [
+      "Kuvert: modtaget.",
+      "Øje: læst."
+    ]
+  },
+  {
+    "title": "4. Betænkningstid",
+    "region": "thinking",
+    "kind": "time",
+    "text": "Følg den grønne pil ned ad højre side. Den viser tiden hos TM inden accepten sendes.",
+    "items": [
+      "Tænk = tiden hos modtageren."
+    ]
+  },
+  {
+    "title": "5. TM = acceptant",
+    "region": "accept",
+    "kind": "recipient",
+    "text": "Nederst til højre står TM som acceptant og sender accept.",
+    "items": [
+      "Acceptant = den, der accepterer.",
+      "Nu følger du accepten tilbage."
+    ]
+  },
+  {
+    "title": "6. Tilbagesendelsestid",
+    "region": "return",
+    "kind": "time",
+    "text": "Følg den orange pil mod venstre. Det er acceptens vej tilbage.",
+    "items": [
+      "Tilbage = accepten hjem."
+    ]
+  },
+  {
+    "title": "7. Bindende aftale",
+    "region": "binding",
+    "kind": "read",
+    "text": "Returforløbet ender nederst til venstre ved bindende aftale.",
+    "items": [
+      "Peg på kuverten og øjet.",
+      "Forklar modtaget og læst."
+    ]
+  },
+  {
+    "title": "8. Fast frist · § 2",
+    "region": "fixed",
+    "kind": "time",
+    "text": "Gå til fristafsnittet til højre. Her står § 2 sammen med fast frist.",
+    "items": [
+      "2 = fast frist."
+    ]
+  },
+  {
+    "title": "9. Den legale acceptfrist · § 3",
+    "region": "legal",
+    "kind": "time",
+    "text": "Læs begge punkter under § 3. Betænkningstiden står ikke alene.",
+    "items": [
+      "Rimelig betænkningstid.",
+      "Frem- og tilbagesendelsestid."
+    ]
+  },
+  {
+    "title": "10. Tilbagekaldelse",
+    "region": "withdraw",
+    "kind": "withdraw",
+    "text": "Boksens ordlyd: Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket.",
+    "items": [
+      "Både tilbud og accept er nævnt.",
+      "Pilene knytter noten til øjesymbolerne."
+    ]
+  },
+  {
+    "title": "11. Forsinkelse · § 4",
+    "region": "late",
+    "kind": "exception",
+    "text": "Nederst på billedet står forsinkelse sammen med § 4 og nyt tilbud.",
+    "items": [
+      "Forsinkelse handler om tid."
+    ]
+  },
+  {
+    "title": "12. Uoverensstemmende · § 6",
+    "region": "different",
+    "kind": "exception",
+    "text": "Den næste linje viser uoverensstemmende sammen med § 6 og modbud.",
+    "items": [
+      "Tænk på indhold, der ændres.",
+      "Fx en anden pris end tilbuddet."
+    ]
+  },
+  {
+    "title": "13. Pligtmæssig reklamation · § 40",
+    "region": "claim",
+    "kind": "claim",
+    "text": "Slut ved den fælles boks. Begge forbindelser fra § 4 og § 6 ender her.",
+    "items": [
+      "To forbindelser, én boks.",
+      "Pligtmæssig reklamation · § 40."
+    ]
+  }
+];
+  let slideIndex = 0;
+  function renderSlide() {
+    const slide=slides[slideIndex],host=$("#presentationContent");
+    const layout=el("div","presentation-grid");
+    const picture=el("div","presentation-picture");
+    picture.innerHTML=modelSvg(false,"present",slide.region);
+    const copy=el("div","presentation-copy");
+    copy.append(tag(slide.kind),el("h3","",slide.title),el("p","slide-lead",slide.text));
+    const items=el("ul","slide-points");
+    slide.items.forEach(text=>items.append(el("li","",text)));
+    copy.append(items);
+    const zoom=el("button","button secondary small","Se billedet stort ↗");
+    zoom.type="button";zoom.addEventListener("click",()=>openGraphic(slide.region));
+    const controls=el("div","button-row");
+    controls.append(zoom,audioButton(slide.title,()=>readOne(slide.title,[slide.text,...slide.items].join(" "),copy)));
+    copy.append(controls);layout.append(picture,copy);host.replaceChildren(layout);
+    $("#slideCounter").textContent=(slideIndex+1)+" / "+slides.length;
+    $("#presentationProgress").max=slides.length;
+    $("#presentationProgress").value=slideIndex+1;
+    $("#previousSlide").disabled=slideIndex===0;
+    $("#nextSlide").disabled=slideIndex===slides.length-1;
+  }
+  function moveSlide(delta) {
+    slideIndex = Math.max(0, Math.min(slides.length - 1, slideIndex + delta));
+    if (reader.playing || reader.paused) stopSpeech(false);
+    renderSlide();
+  }
+  $("#presentLaunch").addEventListener("click", () => {
+    stopModel();
+    slideIndex = 0;
+    renderSlide();
+    openDialog("presentDialog");
+  });
+  $("#previousSlide").addEventListener("click", () => moveSlide(-1));
+  $("#nextSlide").addEventListener("click", () => moveSlide(1));
+  $("#presentDialog").addEventListener("keydown", e => {
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(e.target.tagName)) return;
+    if (["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) {
+      e.preventDefault();
+      if (e.key === "Home") slideIndex = 0;else if (e.key === "End") slideIndex = slides.length - 1;else {
+        moveSlide(e.key === "ArrowRight" ? 1 : -1);
         return;
       }
-      if (reader.status === "ended") { reader.index = 0; reader.chunk = 0; reader.parts = []; }
-      markSpeechEntry(reader.entries[reader.index]); speakChunk();
+      renderSlide();
     }
-    function readEntries(entries) {
-      stopModel(); stopSpeech(false); reader.entries = entries; reader.index = 0; openReader(); playReader();
+  });
+  $$("[data-close]").forEach(b => b.addEventListener("click", () => $("#" + b.dataset.close).close()));
+  $$(".study-dialog").forEach(d => {
+    d.addEventListener("close", () => {
+      document.body.classList.toggle("dialog-open", $$(".study-dialog").some(x => x.open));
+      const target = reader.entries[reader.index]?.target;
+      if (target && d.contains(target)) stopSpeech(false);
+      if (document.fullscreenElement === d) document.exitFullscreen?.().catch(() => {});
+    });
+    d.addEventListener("click", e => {
+      if (e.target !== d) return;
+      const r = d.getBoundingClientRect();
+      if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) d.close();
+    });
+  });
+  $$("[data-fullscreen]").forEach(b => {
+    if (!document.fullscreenEnabled || !$("#" + b.dataset.fullscreen).requestFullscreen) {
+      b.hidden = true;
+      return;
     }
-    function readOne(title, text, target) { readEntries([{ title, text, target }]); }
-    function allReadingEntries() {
-      const entries = [{ title: "Kort fortalt", text: "Ved aftalers indgåelse ønskes et svar på, om der er indgået en bindende aftale mellem to parter. Brevsprække betyder modtaget. Kundskab betyder læst.", target: $("#overviewCard") }];
-      steps.forEach((step, i) => entries.push({ title: "Trin " + (i + 1) + ": " + step.title, text: step.description + " " + step.binding, target: timelineButtons[i], activate: () => selectStep(i) }));
-      $$(".accordion-list .concept").forEach((details) => entries.push({ title: $("summary > span", details).textContent.replace(/VIGTIGT.*/, "").trim(), text: $("p", details).textContent, target: details }));
-      for (const id of ["memoryMoment", "memoryOrder", "memoryRules"]) {
-        const card = $("#" + id); entries.push({ title: $("h3", card).textContent, text: $$("p", card).map((p) => p.textContent).join(" "), target: card });
+    b.addEventListener("click", async () => {
+      try {
+        const d = $("#" + b.dataset.fullscreen);
+        if (document.fullscreenElement) await document.exitFullscreen();else await d.requestFullscreen();
+      } catch {
+        toast("Browseren kunne ikke åbne fuld skærm. Den store visning virker stadig.");
       }
-      entries.push({ title: "Fem ting du skal kunne", text: $$("li", $("#fiveThings")).map((li) => li.textContent).join(" "), target: $("#fiveThings") });
-      teacherQuestions.forEach((item, i) => entries.push({ title: "Hvis læreren spørger: " + item.question, text: item.answer, target: $("#teacherQuestion-" + i) }));
-      return entries;
-    }
-    function moveReading(delta) {
-      if (!reader.entries.length) reader.entries = allReadingEntries();
-      const next = Math.max(0, Math.min(reader.entries.length - 1, reader.index + delta));
-      cancelUtterance(); reader.index = next; reader.chunk = 0; reader.parts = []; markSpeechEntry(reader.entries[next]); speakChunk();
-    }
-    function decorateBuildAudio() {
-      $$(".build-card", $("#buildPanel")).forEach((card) => {
-        if (card.parentElement.classList.contains("build-item")) return;
-        const step = stepById.get(card.dataset.cardId); const wrap = element("span", "build-item"); card.before(wrap);
-        wrap.append(card, soundButton("Læs byggekort: " + step.buildLabel, () => readOne(step.buildLabel, step.description, wrap)));
-      });
-    }
-    function initializeStudyTools() {
-      $$("[data-icon]").forEach((node) => { node.innerHTML = iconMarkup(node.dataset.icon); });
-      $$("[data-tags]").forEach((node) => node.replaceChildren(...node.dataset.tags.split(" ").map((kind) => semanticTag(kind, true))));
-      for (const kind of Object.keys(TYPES)) {
-        const item = element("div", "legend-item"); item.append(semanticTag(kind, true), element("span", "", TYPES[kind].hint)); $("#semanticLegend").append(item);
-      }
-      const concepts = $$(".accordion-list .concept");
-      const conceptKinds = ["declarative", "mandatory", "protective", null, null, null, "read", "received"];
-      concepts.forEach((details, i) => {
-        details.id = "concept-" + i; const kind = conceptKinds[i];
-        if (kind) {
-          details.classList.add("concept-" + kind); $("summary > span", details).prepend(iconNode(kind));
-          const badge = $(".important-badge", details); if (badge) badge.textContent = "VIGTIGT · " + TYPES[kind].hint.toUpperCase();
-        }
-        const title = $("summary > span", details).textContent.replace(/VIGTIGT.*/, "").trim();
-        details.append(soundButton("Læs begrebet " + title + " op", () => readOne(title, $("p", details).textContent, details)));
-      });
-      $$(".comparison-card tbody th").forEach((cell, i) => { const kind = i === 0 ? "received" : "read"; cell.classList.add("role-" + kind); cell.replaceChildren(iconNode(kind), document.createTextNode(TYPES[kind].label)); });
-      for (const id of ["memoryMoment", "memoryOrder", "memoryRules", "fiveThings"]) {
-        const card = $("#" + id); const title = $("h3", card).textContent;
-        card.append(soundButton("Læs huskekortet op", () => readOne(title, $$("p:not(.eyebrow), li", card).map((node) => node.textContent).join(" "), card)));
-      }
-      $("#overviewCard").append(soundButton("Læs Kort fortalt op", () => readEntries([allReadingEntries()[0]])));
-      const oldMemory = $(".memory-card");
-      oldMemory.append(soundButton("Læs huskereglen op", () => readOne($("h3", oldMemory).textContent, $("p:last-of-type", oldMemory).textContent, oldMemory)));
-      $(".comparison-card").append(soundButton("Læs sammenligningen op", () => readOne("Modtaget eller læst?", "Brevsprække: Meddelelsen er modtaget. Et påbud binder her. Kundskab: Meddelelsen er læst. Et løfte binder her.", $(".comparison-card"))));
-      $(".graphic-actions").append(soundButton("Læs hele modellen op", () => readEntries(steps.map((step, i) => ({ title: "Trin " + (i + 1), text: step.description, target: $("#modelGraphic"), activate: () => selectStep(i) })))));
-      teacherQuestions.forEach((item, i) => {
-        const details = element("details", "teacher-question"); details.id = "teacherQuestion-" + i;
-        details.append(element("summary", "", item.question), element("p", "", item.answer), soundButton("Læs spørgsmål og svar op", () => readOne(item.question, item.answer, details)));
-        $("#teacherQuestions").append(details);
-      });
-      $("#listenCurrentStep").prepend(iconNode("speaker"));
-      $("#listenCurrentStep").addEventListener("click", () => readOne("Trin " + (currentStep + 1) + ": " + steps[currentStep].title, steps[currentStep].description + " " + steps[currentStep].binding, timelineButtons[currentStep]));
-      $("#listenFlash").addEventListener("click", () => { const card = flashById.get(flashHistory[flashPosition]); readOne(flashFlipped ? "Svar" : "Spørgsmål", flashFlipped ? card.answer : card.question, $("#flashCard")); });
-      $("#listenQuiz").addEventListener("click", () => {
-        const question = quizItems[quizPosition]; const text = question.question + " " + question.options.map((option, i) => String.fromCharCode(65 + i) + ": " + option).join(" ") + (quizAnswered ? " Forklaring: " + question.explanation : "");
-        readOne("Quizspørgsmål", text, $("#quizCard"));
-      });
-      decorateBuildAudio();
-      $("#scoreTitle").before(soundButton("Læs din modelvurdering op", () => readOne($("#scoreTitle").textContent, $("#scoreAccessible").textContent + ". " + $("#scoreDescription").textContent + " " + $$("li", $("#scoreMissing")).map((li) => li.textContent).join(" "), $("#modelScore"))));
+    });
+  });
 
-      for (const id of ["graphicZoomTarget", "zoomGraphic"]) $("#" + id).addEventListener("click", openGraphic);
-      $("#graphicZoomIn").addEventListener("click", () => { pictureZoom = Math.min(4, pictureZoom + .5); applyPictureZoom(); });
-      $("#graphicZoomOut").addEventListener("click", () => { pictureZoom = Math.max(1, pictureZoom - .5); applyPictureZoom(); });
-      $("#graphicFit").addEventListener("click", () => { pictureZoom = 1; applyPictureZoom(); $("#graphicViewport").scrollLeft = 0; });
-      window.addEventListener("resize", () => { if ($("#graphicDialog").open) applyPictureZoom(); });
-      $("#downloadGraphic").addEventListener("click", downloadPng);
-      $("#printGraphic").addEventListener("click", printModel);
-      window.addEventListener("afterprint", () => document.body.classList.remove("is-print-model"));
-      for (const id of ["openCheat", "openCheatMemory", "presentCheat"]) $("#" + id).addEventListener("click", openCheat);
-      $("#presentLaunch").addEventListener("click", () => { slideIndex = 0; openDialog("presentDialog"); renderSlide(); });
-      $("#previousSlide").addEventListener("click", () => moveSlide(-1));
-      $("#nextSlide").addEventListener("click", () => moveSlide(1));
-      $("#presentDialog").addEventListener("keydown", (event) => {
-        if (["ArrowLeft", "ArrowRight", "PageDown", "PageUp", "Home", "End"].includes(event.key) && !["INPUT", "SELECT"].includes(event.target.tagName)) {
-          event.preventDefault();
-          if (event.key === "Home" || event.key === "End") { slideIndex = event.key === "Home" ? 0 : SLIDE_COUNT - 1; renderSlide(); }
-          else moveSlide(["ArrowLeft", "PageUp"].includes(event.key) ? -1 : 1);
-        }
+  // Oplæsning er frivillig og starter kun gennem en af elevens knapper.
+  const speechSupported = "speechSynthesis" in window && "SpeechSynthesisUtterance" in window;
+  const reader = {
+    entries: [],
+    index: 0,
+    chunks: [],
+    chunkIndex: 0,
+    offset: 0,
+    boundary: 0,
+    token: 0,
+    playing: false,
+    paused: false,
+    voice: null,
+    marked: null
+  };
+  let utterance = null;
+  function loadVoices() {
+    if (!speechSupported) return;
+    const voices = speechSynthesis.getVoices();
+    reader.voice = voices.find(v => /^da(?:-|_|$)/i.test(v.lang) && v.localService) || voices.find(v => /^da(?:-|_|$)/i.test(v.lang)) || null;
+    $("#readerVoice").textContent = reader.voice ? "Dansk stemme: " + reader.voice.name + (reader.voice.localService ? " · på enheden" : " · kan kræve internet") : "Ingen dansk stemme fundet. Enhedens standardstemme kan blive brugt.";
+  }
+  function normalizeSpeech(text) {
+    return text.replace(/§/g, " paragraf ").replace(/\bAFTL\b/g, "A F T L").replace(/\bTG\b/g, "tilbudsgiver").replace(/\bTM\b/g, "tilbudsmodtager").replace(/\//g, ", ").replace(/\s+/g, " ").trim();
+  }
+  function chunksFor(text) {
+    const words = normalizeSpeech(text).split(/\s+/);
+    const out = [];
+    let chunk = "";
+    for (const word of words) {
+      if (chunk.length + word.length > 230 && chunk) {
+        out.push(chunk);
+        chunk = "";
+      }
+      chunk += (chunk ? " " : "") + word;
+    }
+    if (chunk) out.push(chunk);
+    return out;
+  }
+  function allReadingEntries() {
+    return [{
+      title: "Kort fortalt",
+      text: overviewText,
+      target: $("#overviewCard")
+    }, ...parts.slice(0, 7).map(p => {
+      const pi = points.findIndex(x => x.id === p.id);
+      return {
+        title: p.label,
+        text: p.text,
+        target: pi >= 0 ? $("#modelDetail") : $("#time-" + p.id),
+        point: pi
+      };
+    }), ...concepts.map(c => ({
+      title: c.title,
+      text: conceptSpeech(c),
+      target: $("#concept-" + c.id)
+    })), ...memories.map(m => ({
+      title: m.title,
+      text: m.text || m.list.join(" "),
+      target: $("#memory-" + m.id)
+    }))];
+  }
+  function modelReadingEntries() {
+    return parts.map(p => ({
+      title: p.label,
+      text: p.text,
+      target: $("#modelGraphic")
+    }));
+  }
+  function showReader() {
+    $("#readerLaunch").hidden = true;
+    $("#readerPanel").hidden = false;
+    document.body.classList.add("reader-open");
+    if (!speechSupported) {
+      $("#readerStatus").textContent = "Din browser understøtter ikke oplæsning. Du kan stadig bruge alle tekster og øvelser.";
+      $$("#readerPanel button:not(#minimizeReader),#readerPanel select").forEach(b => b.disabled = true);
+    }
+  }
+  function updateReader() {
+    const entry = reader.entries[reader.index];
+    $("#readerTitle").textContent = entry?.title || "Læs det hele op";
+    $("#readerCounter").textContent = reader.entries.length ? reader.index + 1 + " / " + reader.entries.length : "";
+    $("#readerPlay").disabled = !speechSupported || reader.playing;
+    $("#readerPause").disabled = !speechSupported || !reader.playing;
+    $("#readerPause").setAttribute("aria-pressed", String(reader.paused));
+    $("#readerPlay").textContent = reader.paused ? "Fortsæt" : "Afspil";
+    $("#readerPrevious").disabled = !speechSupported || reader.index === 0;
+    $("#readerNext").disabled = !speechSupported || reader.index >= reader.entries.length - 1;
+  }
+  function clearSpeechMark() {
+    reader.marked?.classList.remove("is-reading");
+    reader.marked = null;
+  }
+  function markEntry(entry) {
+    clearSpeechMark();
+    if (entry.point >= 0) selectPoint(entry.point);
+    const target = entry.target;
+    if (!target) return;
+    if (target.tagName === "DETAILS") target.open = true;
+    target.classList.add("is-reading");
+    reader.marked = target;
+    const r = target.getBoundingClientRect();
+    if (r.bottom < 130 || r.top > innerHeight - 180) target.scrollIntoView({
+      behavior: motion.matches ? "auto" : "smooth",
+      block: "center"
+    });
+  }
+  function cancelSpeech() {
+    reader.token++;
+    if (speechSupported) speechSynthesis.cancel();
+    utterance = null;
+  }
+  function stopSpeech(announce = true) {
+    cancelSpeech();
+    reader.playing = false;
+    reader.paused = false;
+    reader.index = 0;
+    reader.chunks = [];
+    reader.chunkIndex = 0;
+    reader.offset = 0;
+    reader.boundary = 0;
+    clearSpeechMark();
+    if (announce) $("#readerStatus").textContent = "Oplæsningen er stoppet.";
+    updateReader();
+  }
+  function speakChunk() {
+    if (!speechSupported || !reader.playing) return;
+    const entry = reader.entries[reader.index];
+    if (!entry) {
+      reader.playing = false;
+      reader.paused = false;
+      clearSpeechMark();
+      $("#readerStatus").textContent = "Oplæsningen er færdig.";
+      reader.index = Math.max(0, reader.entries.length - 1);
+      updateReader();
+      return;
+    }
+    if (!reader.chunks.length) {
+      reader.chunks = chunksFor(entry.text);
+      reader.chunkIndex = 0;
+      reader.offset = 0;
+      markEntry(entry);
+    }
+    if (reader.chunkIndex >= reader.chunks.length) {
+      reader.index++;
+      reader.chunks = [];
+      reader.chunkIndex = 0;
+      reader.offset = 0;
+      updateReader();
+      speakChunk();
+      return;
+    }
+    const text = reader.chunks[reader.chunkIndex].slice(reader.offset);
+    if (!text.trim()) {
+      reader.chunkIndex++;
+      reader.offset = 0;
+      speakChunk();
+      return;
+    }
+    const token = ++reader.token;
+    utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "da-DK";
+    utterance.rate = Number($("#readerRate").value);
+    if (reader.voice) utterance.voice = reader.voice;
+    reader.boundary = 0;
+    utterance.onboundary = e => {
+      if (token === reader.token && Number.isFinite(e.charIndex)) reader.boundary = e.charIndex;
+    };
+    utterance.onstart = () => {
+      if (token !== reader.token) return;
+      $("#readerStatus").textContent = "Læser: " + entry.title;
+      updateReader();
+    };
+    utterance.onend = () => {
+      if (token !== reader.token || !reader.playing) return;
+      reader.chunkIndex++;
+      reader.offset = 0;
+      reader.boundary = 0;
+      speakChunk();
+    };
+    utterance.onerror = e => {
+      if (token !== reader.token) return;
+      if (["canceled", "interrupted"].includes(e.error)) return;
+      reader.playing = false;
+      reader.paused = false;
+      $("#readerStatus").textContent = "Oplæsningen kunne ikke fortsætte. Prøv Afspil, eller vælg en stemme i enhedens indstillinger.";
+      updateReader();
+    };
+    speechSynthesis.speak(utterance);
+    updateReader();
+  }
+  function playReader() {
+    showReader();
+    if (!speechSupported || reader.playing) return;
+    if (!reader.entries.length) reader.entries = allReadingEntries();
+    if (reader.index >= reader.entries.length) reader.index = 0;
+    reader.playing = true;
+    reader.paused = false;
+    loadVoices();
+    speakChunk();
+  }
+  function readEntries(entries) {
+    stopModel();
+    cancelSpeech();
+    clearSpeechMark();
+    reader.entries = entries;
+    reader.index = 0;
+    reader.chunks = [];
+    reader.chunkIndex = 0;
+    reader.offset = 0;
+    reader.boundary = 0;
+    reader.playing = false;
+    reader.paused = false;
+    showReader();
+    playReader();
+  }
+  function readOne(title, text, target) {
+    readEntries([{
+      title,
+      text,
+      target
+    }]);
+  }
+  function moveReading(delta) {
+    if (!reader.entries.length) reader.entries = allReadingEntries();
+    cancelSpeech();
+    reader.index = Math.max(0, Math.min(reader.entries.length - 1, reader.index + delta));
+    reader.chunks = [];
+    reader.chunkIndex = 0;
+    reader.offset = 0;
+    reader.boundary = 0;
+    reader.playing = false;
+    reader.paused = false;
+    playReader();
+  }
+  $("#readerLaunch").addEventListener("click", () => {
+    if (reader.playing || reader.paused) {
+      showReader();
+      updateReader();
+    } else readEntries(allReadingEntries());
+  });
+  $("#readerAll").addEventListener("click", () => readEntries(allReadingEntries()));
+  $("#readerPlay").addEventListener("click", playReader);
+  $("#readerStop").addEventListener("click", () => stopSpeech());
+  $("#readerPause").addEventListener("click", () => {
+    if (!reader.playing) return;
+    reader.offset += reader.boundary;
+    cancelSpeech();
+    reader.playing = false;
+    reader.paused = true;
+    reader.boundary = 0;
+    $("#readerStatus").textContent = "Sat på pause. Tryk Fortsæt.";
+    updateReader();
+  });
+  $("#readerPrevious").addEventListener("click", () => moveReading(-1));
+  $("#readerNext").addEventListener("click", () => moveReading(1));
+  $("#readerRate").addEventListener("change", () => {
+    if (reader.playing) {
+      reader.offset += reader.boundary;
+      cancelSpeech();
+      reader.boundary = 0;
+      speakChunk();
+    }
+  });
+  $("#minimizeReader").addEventListener("click", () => {
+    $("#readerPanel").hidden = true;
+    $("#readerLaunch").hidden = false;
+    document.body.classList.remove("reader-open");
+    $("#readerLaunch").textContent = reader.playing ? "Åbn oplæseren" : "Læs det hele op";
+  });
+  document.addEventListener("click", e => {
+    const b = e.target.closest("[data-read]");
+    if (!b) return;
+    if (b.dataset.read === "overview") readOne("Kort fortalt", overviewText, $("#overviewCard"));else if (b.dataset.read === "symbols") readOne("Symbolerne", "Kuvert betyder modtaget. Øje betyder læst.", $("#symbolComparison"));else if (b.dataset.read === "whole-model") readEntries(modelReadingEntries());
+  });
+  if (speechSupported) {
+    loadVoices();
+    speechSynthesis.addEventListener?.("voiceschanged", loadVoices);
+  }
+  window.addEventListener("pagehide", () => {
+    cancelSpeech();
+    if (pngUrl) URL.revokeObjectURL(pngUrl);
+  });
+
+  // PWA: den nye, separate service worker erstatter også den tidligere worker.
+  let installPrompt = null,
+    offlineReady = false;
+  function updateOfflineStatus() {
+    $("#offlineStatus").textContent = offlineReady ? navigator.onLine ? "Offline klar · resultater gemmes på enheden" : "Offline · resultater gemmes på enheden" : "Dine resultater bliver på enheden";
+  }
+  window.addEventListener("online", updateOfflineStatus);
+  window.addEventListener("offline", updateOfflineStatus);
+  window.addEventListener("beforeinstallprompt", e => {
+    e.preventDefault();
+    installPrompt = e;
+    $("#installApp").textContent = "Installér app";
+  });
+  window.addEventListener("appinstalled", () => {
+    installPrompt = null;
+    $("#installApp").textContent = "Appen er installeret";
+    $("#installApp").disabled = true;
+  });
+  $("#installApp").addEventListener("click", async () => {
+    if (installPrompt) {
+      try {
+        await installPrompt.prompt();
+        await installPrompt.userChoice;
+      } catch {
+        openDialog("installDialog");
+      } finally {
+        installPrompt = null;
+      }
+    } else openDialog("installDialog");
+  });
+  async function activateOffline() {
+    if (!("serviceWorker" in navigator) || !["http:", "https:"].includes(location.protocol)) return;
+    try {
+      const reg = await navigator.serviceWorker.register("./sw.js", {
+        scope: "./",
+        updateViaCache: "none"
       });
-      $$("[data-close]").forEach((button) => button.addEventListener("click", () => $("#" + button.dataset.close).close()));
-      $$(".study-dialog").forEach((dialog) => dialog.addEventListener("close", () => {
-        if (!$$(".study-dialog[open]").length) document.body.classList.remove("dialog-open");
-        if (document.fullscreenElement === dialog && document.exitFullscreen) document.exitFullscreen().catch(() => {});
+      const worker = reg.installing || reg.waiting || reg.active;
+      if (worker && worker.state !== "activated") await new Promise(resolve => worker.addEventListener("statechange", () => {
+        if (["activated", "redundant"].includes(worker.state)) resolve();
       }));
-      $$("[data-fullscreen]").forEach((button) => {
-        const target = $("#" + button.dataset.fullscreen);
-        if (typeof target.requestFullscreen !== "function") { button.hidden = true; return; }
-        button.addEventListener("click", async () => {
-          try { if (document.fullscreenElement) await document.exitFullscreen(); else await target.requestFullscreen(); }
-          catch { toast("Visningen fylder allerede siden. Browseren tillader ikke mere fuld skærm her."); }
-        });
-      });
+      offlineReady = !!reg.active;
+      updateOfflineStatus();
+    } catch {
+      $("#offlineStatus").textContent = "Browseren kunne ikke aktivere offlinebrug. Øvelserne virker stadig.";
+    }
+  }
 
-      $("#readerLaunch").addEventListener("click", () => {
-        if (["speaking", "paused"].includes(reader.status)) { openReader(); updateReader(); }
-        else readEntries(allReadingEntries());
-      });
-      $("#readerAll").addEventListener("click", () => readEntries(allReadingEntries()));
-      $("#readerPlay").addEventListener("click", playReader);
-      $("#readerPause").addEventListener("click", () => {
-        if (!speechEngine || reader.status !== "speaking") return;
-        speechEngine.pause(); reader.status = "paused"; $("#readerStatus").textContent = "På pause. Tryk Fortsæt for at læse videre."; updateReader();
-      });
-      $("#readerStop").addEventListener("click", () => stopSpeech());
-      $("#readerPrevious").addEventListener("click", () => moveReading(-1));
-      $("#readerNext").addEventListener("click", () => moveReading(1));
-      $("#readerRate").addEventListener("change", (event) => {
-        reader.rate = Number(event.target.value);
-        if (reader.status === "speaking") {
-          const rest = (reader.parts[reader.chunk] || "").slice(reader.boundary).trim();
-          if (rest) reader.parts[reader.chunk] = rest; speakChunk();
-        } else if (reader.status === "paused") {
-          const rest = (reader.parts[reader.chunk] || "").slice(reader.boundary).trim();
-          if (rest) reader.parts[reader.chunk] = rest; cancelUtterance();
+  // Indhold er synligt uden animationsstøtte, og reduceret bevægelse respekteres.
+  function initializeObservers() {
+    if (!("IntersectionObserver" in window)) return;
+    if (!motion.matches) {
+      const observer = new IntersectionObserver(entries => {
+        for (const e of entries) if (e.isIntersecting) {
+          e.target.classList.add("is-visible");
+          observer.unobserve(e.target);
         }
+      }, {
+        threshold: .07
       });
-      $("#minimizeReader").addEventListener("click", () => {
-        $("#readerDock").classList.add("is-minimized"); $("#readerPanel").hidden = true; document.body.classList.remove("reader-expanded");
-        $("#readerLaunch").innerHTML = iconMarkup("speaker") + (["speaking", "paused"].includes(reader.status) ? " Vis oplæser" : " Læs det hele op");
+      $$(".reveal").forEach(n => {
+        n.classList.add("will-reveal");
+        observer.observe(n);
       });
-      if (speechEngine) {
-        loadVoices();
-        if (typeof speechEngine.addEventListener === "function") speechEngine.addEventListener("voiceschanged", loadVoices);
-        else speechEngine.onvoiceschanged = loadVoices;
-      } else $("#readerVoice").textContent = "Oplæsning kræver browserens Web Speech API. Resten af siden virker som normalt.";
-      reader.entries = allReadingEntries();
-      studyToolsReady = true; updateReader(); refreshGraphics();
-      window.addEventListener("pagehide", () => { cancelUtterance(); if (pngUrl) URL.revokeObjectURL(pngUrl); });
     }
-
-    initializeStudyTools();
-
-    // Diskrete scroll-animationer og aktiv menumarkering.
-    if ("IntersectionObserver" in window) {
-      const revealObserver = new IntersectionObserver((entries) => {
-        entries.forEach((entry) => { if (entry.isIntersecting) { entry.target.classList.add("is-visible"); revealObserver.unobserve(entry.target); } });
-      }, { threshold: .07 });
-      if (!reducedMotion.matches) $$(".reveal").forEach((node) => { node.classList.add("will-reveal"); revealObserver.observe(node); });
-      const navLinks = $$(".main-nav a");
-      const navigationObserver = new IntersectionObserver((entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting);
-        if (!visible.length) return;
-        const id = visible[visible.length - 1].target.id;
-        navLinks.forEach((link) => {
-          if (link.getAttribute("href") === "#" + id) link.setAttribute("aria-current", "location");
-          else link.removeAttribute("aria-current");
-        });
-      }, { rootMargin: "-15% 0px -60% 0px", threshold: 0 });
-      $$(".section-anchor").forEach((section) => navigationObserver.observe(section));
+    const navLinks = $$(".header-inner nav a");
+    const active = new IntersectionObserver(entries => {
+      const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+      if (!visible.length) return;
+      for (const a of navLinks) {
+        if (a.hash === "#" + visible[0].target.id) a.setAttribute("aria-current", "location");else a.removeAttribute("aria-current");
+      }
+    }, {
+      rootMargin: "-12% 0px -50% 0px"
+    });
+    for (const a of navLinks) {
+      const n = $(a.hash);
+      if (n) active.observe(n);
     }
-
-    // Samme fil er service worker. Lokale file://-filer kræver ingen registrering.
-    if ("serviceWorker" in navigator && ["https:", "http:"].includes(location.protocol)) {
-      window.addEventListener("load", () => {
-        navigator.serviceWorker.register("./script.js", { scope: "./" })
-          .then(() => navigator.serviceWorker.ready)
-          .then(() => {
-            $("#offlineStatus").replaceChildren(element("i", "dot read-dot"), document.createTextNode("Offline klar · dine resultater bliver på enheden"));
-            $("#offlineStatus i").setAttribute("aria-hidden", "true");
-          })
-          .catch(() => { /* Siden virker stadig uden service worker, når filerne er åbne. */ });
-      });
-    } else if (location.protocol === "file:") {
-      $("#offlineStatus").textContent = "Offline klar · alle filer er lokale";
-    }
-    if (!storageAvailable) {
-      $("#offlineStatus").textContent = "Øvelser virker her · browserens lagring er utilgængelig";
-    }
-  })();
-}
+  }
+  renderLearningContent();
+  selectPoint(0);
+  applyTheme();
+  restartFlash();
+  beginQuiz(selectedQuestions());
+  renderBuild();
+  renderHistory();
+  $("#printGraphicContent").innerHTML = modelSvg(true, "print");
+  updateReader();
+  initializeObservers();
+  requestAnimationFrame(resizeCanvas);
+  activateOffline();
+  if (storageWarning) toast("Browserlagring er ikke tilgængelig. Du kan stadig øve dig på siden.");
+})();
