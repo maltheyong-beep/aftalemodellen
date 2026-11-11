@@ -67,7 +67,7 @@ Tegning aflæses ikke automatisk. Eleven selvvurderer: tjeklisten giver op til 7
 
 Siden kan åbnes direkte som `index.html`. PWA/offlineinstallation kræver HTTPS eller localhost og et første onlinebesøg. På iPhone/iPad bruges Safari → Del → Føj til hjemmeskærm. Dansk talestemme skal være tilgængelig på enheden; nogle stemmer kræver internet. En manglende stemme eller manglende talestøtte vises som en besked.
 
-`sw.js` har versionsmærket `tavle-2026-11-11-v2`. Cachen omfatter kun eget scope. Tema, kategori, kort og historik gemmes lokalt under `aftalemodellen.tavle-2026-11-11`; tidligere resultater for den samme tavlemodel bevares. Tegningen og den aktuelle quiz/byggeopstilling lever kun i den åbne side. Ingen konto, tracking eller backend.
+`sw.js` har versionsmærket `tavle-2026-11-11-v3`. Cachen omfatter kun eget scope. Tema, kategori, kort og historik gemmes lokalt under `aftalemodellen.tavle-2026-11-11`; tidligere resultater for den samme tavlemodel bevares. Tegningen og den aktuelle quiz/byggeopstilling lever kun i den åbne side. Ingen konto, tracking eller backend.
 
 ## Ændringer i denne udgave
 
@@ -76,3 +76,7 @@ Siden kan åbnes direkte som `index.html`. PWA/offlineinstallation kræver HTTPS
 - Begreber har forklaring, eksempel og huskehjælp.
 - Quizzen har 42 spørgsmål, kategorivalg, blandede svar og konkret fejlfeedback.
 - Flashcards har samme kategorivalg; alle øvrige øvefunktioner er bevaret.
+
+## Mobiludgave
+
+Mobilen har fast bundmenu, større trykflader, læselig quiz og en kompakt oplæser. Quizzen fører videre til forklaringen efter et svar. Flashcards kan swipes og skifter uden at vise næste korts svar. Tegnefladen kan åbnes i stor visning med de samme streger og fortryd/gendan. Byggetilstanden understøtter kortvalg efterfulgt af tryk på en plads. Dialoger bruger skærmens tilgængelige højde og tager højde for skærmkanter. Animationer respekterer reduceret bevægelse. Det faglige indhold, modelbilledet og gemte resultater er uændrede.

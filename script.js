@@ -10,6 +10,7 @@
   const $$ = (s, root = document) => Array.from(root.querySelectorAll(s));
   const motion = matchMedia("(prefers-reduced-motion: reduce)");
   const system = matchMedia("(prefers-color-scheme: dark)");
+  const mobileLayout = matchMedia("(max-width: 700px), (max-width: 1000px) and (max-height: 500px)");
   const MODEL_VERSION = "tavle-2026-11-11";
   const MODEL_IMAGE = $("#modelSourceImage").getAttribute("src");
   const STORAGE_KEY = "aftalemodellen." + MODEL_VERSION;
@@ -1599,12 +1600,13 @@
     if (focus) $$(".timeline-card")[currentPoint].focus();
   }
   function stopModel() {
+    const wasRunning = playRunning;
     clearInterval(modelTimer);
     modelTimer = 0;
     playRunning = false;
     $("#playModel").setAttribute("aria-pressed", "false");
     $("#playModel").textContent = "▷ Afspil modellen";
-    refreshGraphics();
+    if (wasRunning) refreshGraphics();
   }
   function startModel() {
     stopModel();
@@ -1695,6 +1697,7 @@
     if (c) $("#flashCard").setAttribute("aria-label", (value ? "Svar: " + c.answer : "Spørgsmål: " + c.question) + " Tryk for at vende.");
   }
   function renderFlash() {
+    $("#flashCard").classList.add("is-switching");
     const c = flashById.get(flashHistory[flashPosition]);
     $("#flashTopic").textContent = c.topic;
     $("#flashQuestion").textContent = c.question;
@@ -1708,6 +1711,9 @@
     $("#flashQueueLabel").textContent = done === cards.length ? "Alle kort klaret · klar til repetition" : "Ét kort ad gangen";
     $("#previousFlash").disabled = flashPosition === 0;
     setFlipped(false);
+    // Anvend forsiden før nyt indhold fades ind, så svaret ikke blinker frem.
+    void $("#flashCard").offsetWidth;
+    requestAnimationFrame(()=>{$("#flashCard").classList.remove("is-switching");animatePanel($("#flashCard"),7);});
   }
   function nextFlash() {
     if (flashPosition < flashHistory.length - 1) flashPosition++;else {
@@ -1774,6 +1780,7 @@
     }
   });
   $("#flashCard").addEventListener("pointerdown", e => {
+    if(e.pointerType!=="mouse")try{$("#flashCard").setPointerCapture(e.pointerId);}catch{}
     swipeStart = {
       x: e.clientX,
       y: e.clientY,
@@ -1857,9 +1864,11 @@
     $("#quizFeedback").textContent = "Vælg et svar. Du får både begrundelse og huskehjælp.";
     $("#nextQuestion").disabled = true;
     $("#nextQuestion").textContent = questionIndex === quizSet.length - 1 ? "Se resultat →" : "Næste spørgsmål →";
-    if (focus) $("#quizQuestion").focus({
-      preventScroll: true
-    });
+    animatePanel($("#quizQuestionPanel"));
+    if (focus) {
+      $("#quizQuestion").focus({preventScroll:true});
+      mobileScroll($("#quizQuestionPanel"));
+    }
   }
   function answerQuestion(index) {
     if (questionLocked) return;
@@ -1907,6 +1916,8 @@
       feedback.append(explanation);
     }
     $("#nextQuestion").disabled = false;
+    animatePanel(feedback,7);
+    mobileScroll(feedback);
   }
   function countUp(node, goal, duration = 800) {
     const token = String(Math.random());
@@ -2224,6 +2235,7 @@
       b.classList.toggle("is-selected", active);
       b.setAttribute("aria-pressed", String(active));
     });
+    updateBuildSelectionHint();
   }
   function clearBuildFeedback() {
     buildFeedback = false;
@@ -2250,6 +2262,7 @@
     if (c) {
       selectedCard = selectedCard === c.dataset.part ? null : c.dataset.part;
       updateSelection();
+      if(selectedCard)mobileScroll($("#mobileBuildSelection"));
       $("#buildAnnouncement").textContent = selectedCard ? "Valgt: " + partById.get(selectedCard).label + ". Vælg nu en plads." : "Valget er ophævet.";
       return;
     }
@@ -2724,6 +2737,8 @@
     $("#presentationProgress").value=slideIndex+1;
     $("#previousSlide").disabled=slideIndex===0;
     $("#nextSlide").disabled=slideIndex===slides.length-1;
+    animatePanel(host);
+    if(mobileLayout.matches && $("#presentDialog").open)requestAnimationFrame(()=>$("#presentDialog").scrollTo({top:0,behavior:motion.matches?"auto":"smooth"}));
   }
   function moveSlide(delta) {
     slideIndex = Math.max(0, Math.min(slides.length - 1, slideIndex + delta));
@@ -2755,6 +2770,7 @@
       document.body.classList.toggle("dialog-open", $$(".study-dialog").some(x => x.open));
       const target = reader.entries[reader.index]?.target;
       if (target && d.contains(target)) stopSpeech(false);
+      if(d.contains($("#readerDock"))){minimizeReaderPanel();document.body.append($("#readerDock"));}
       if (document.fullscreenElement === d) document.exitFullscreen?.().catch(() => {});
     });
     d.addEventListener("click", e => {
@@ -2848,6 +2864,11 @@
     }));
   }
   function showReader() {
+    const host=reader.entries[reader.index]?.target?.closest("dialog[open]");
+    if($("#readerDock").parentElement!==(host||document.body)){
+      $("#readerDock").closest("dialog")?.classList.remove("has-reader");
+      (host||document.body).append($("#readerDock"));
+    }
     $("#readerLaunch").hidden = true;
     $("#readerPanel").hidden = false;
     document.body.classList.add("reader-open");
@@ -2855,6 +2876,7 @@
       $("#readerStatus").textContent = "Din browser understøtter ikke oplæsning. Du kan stadig bruge alle tekster og øvelser.";
       $$("#readerPanel button:not(#minimizeReader),#readerPanel select").forEach(b => b.disabled = true);
     }
+    syncReaderChrome();
   }
   function updateReader() {
     const entry = reader.entries[reader.index];
@@ -2866,6 +2888,7 @@
     $("#readerPlay").textContent = reader.paused ? "Fortsæt" : "Afspil";
     $("#readerPrevious").disabled = !speechSupported || reader.index === 0;
     $("#readerNext").disabled = !speechSupported || reader.index >= reader.entries.length - 1;
+    updateReaderLaunch();
   }
   function clearSpeechMark() {
     reader.marked?.classList.remove("is-reading");
@@ -2882,7 +2905,7 @@
     const r = target.getBoundingClientRect();
     if (r.bottom < 130 || r.top > innerHeight - 180) target.scrollIntoView({
       behavior: motion.matches ? "auto" : "smooth",
-      block: "center"
+      block: mobileLayout.matches ? "start" : "center"
     });
   }
   function cancelSpeech() {
@@ -3017,7 +3040,8 @@
     if (reader.playing || reader.paused) {
       showReader();
       updateReader();
-    } else readEntries(allReadingEntries());
+    } else if($("#readerDock").closest("dialog[open]")&&reader.entries.length){showReader();playReader();}
+    else readEntries(allReadingEntries());
   });
   $("#readerAll").addEventListener("click", () => readEntries(allReadingEntries()));
   $("#readerPlay").addEventListener("click", playReader);
@@ -3042,12 +3066,7 @@
       speakChunk();
     }
   });
-  $("#minimizeReader").addEventListener("click", () => {
-    $("#readerPanel").hidden = true;
-    $("#readerLaunch").hidden = false;
-    document.body.classList.remove("reader-open");
-    $("#readerLaunch").textContent = reader.playing ? "Åbn oplæseren" : "Læs det hele op";
-  });
+  $("#minimizeReader").addEventListener("click", minimizeReaderPanel);
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-read]");
     if (!b) return;
@@ -3127,7 +3146,7 @@
         observer.observe(n);
       });
     }
-    const navLinks = $$(".header-inner nav a");
+    const navLinks = $$(".header-inner nav a, .mobile-nav a");
     const active = new IntersectionObserver(entries => {
       const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
       if (!visible.length) return;
@@ -3142,7 +3161,113 @@
       if (n) active.observe(n);
     }
   }
+  // Mobilbetjening deles med desktop: samme data, læringsindhold og canvas.
+  function animatePanel(node, distance = 9) {
+    if (motion.matches || !node?.animate) return;
+    node.getAnimations?.().forEach(animation => animation.cancel());
+    node.animate([{opacity:0,transform:`translateY(${distance}px)`},{opacity:1,transform:"translateY(0)"}],{duration:230,easing:"cubic-bezier(.2,.7,.2,1)"});
+  }
+  function mobileScroll(node) {
+    if (!mobileLayout.matches || !node) return;
+    requestAnimationFrame(() => node.scrollIntoView({behavior:motion.matches?"auto":"smooth",block:"start"}));
+  }
+  function updateReaderLaunch() {
+    const button = $("#readerLaunch");
+    const label = reader.playing || reader.paused ? "Åbn oplæseren" : "Læs det hele op";
+    button.replaceChildren(iconNode("speaker"),el("span","reader-launch-text",label));
+    button.setAttribute("aria-label",label);
+    button.title=label;
+  }
+  function syncReaderChrome() {
+    const dock=$("#readerDock"), panel=$("#readerPanel"), host=dock.closest("dialog");
+    host?.classList.toggle("has-reader",!panel.hidden);
+    $("#readerAll").hidden=!!host;
+    const height=panel.hidden?0:Math.ceil(panel.getBoundingClientRect().height)+20;
+    document.documentElement.style.setProperty("--reader-height",height+"px");
+  }
+  function minimizeReaderPanel() {
+    $("#readerPanel").hidden=true;
+    $("#readerLaunch").hidden=false;
+    document.body.classList.remove("reader-open");
+    updateReaderLaunch();
+    syncReaderChrome();
+  }
+  function updateBuildSelectionHint() {
+    const hint=$("#mobileBuildSelection");
+    if(!hint)return;
+    hint.hidden=!selectedCard;
+    if(selectedCard)$("#selectedBuildLabel").textContent=partById.get(selectedCard).label;
+  }
+  function installMobileUI() {
+    const navigation=el("nav","mobile-nav");
+    navigation.setAttribute("aria-label","Mobilmenu");
+    const menu=[
+      ["overblik","Overblik","Overblik",'<path d="m3 10 9-7 9 7v11h-6v-7H9v7H3Z"/>'],
+      ["model","Model","Model",'<rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><path d="M9 6h9v9M6 9v9h9"/>'],
+      ["begreber","Begreber","Begreber",'<path d="M12 5v16M3 3c4-1 7 0 9 2 2-2 5-3 9-2v16c-4-1-7 0-9 2-2-2-5-3-9-2Z"/>'],
+      ["flashcards","Kort","Flashcards",'<rect x="5" y="6" width="16" height="15" rx="3"/><path d="M17 3H6a3 3 0 0 0-3 3v10M10 12h6M10 16h4"/>'],
+      ["quiz","Quiz","Quiz",'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'],
+      ["tegn-selv","Tegn","Tegn selv",'<path d="m14 5 5 5M3 21l5-1L21 7a2 2 0 0 0-4-4L4 16Z"/>']
+    ];
+    for(const [id,label,accessible,path] of menu){
+      const link=el("a","mobile-nav-link");link.href="#"+id;link.setAttribute("aria-label",accessible);
+      link.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';
+      link.append(el("span","",label));
+      link.addEventListener("click",()=>{navigation.querySelectorAll("a").forEach(a=>a.removeAttribute("aria-current"));link.setAttribute("aria-current","location");});
+      navigation.append(link);
+    }
+    document.body.append(navigation);
+    // Safe areas og værktøjslinjer følger den faktisk synlige mobilskærm.
+    const viewport=$("meta[name=viewport]");
+    if(viewport&&!viewport.content.includes("viewport-fit"))viewport.content+=", viewport-fit=cover";
+    let viewportFrame=0;
+    const measure=()=>{
+      viewportFrame=0;
+      document.documentElement.style.setProperty("--app-height",Math.round(window.visualViewport?.height||innerHeight)+"px");
+      document.documentElement.style.setProperty("--header-height",Math.ceil($(".site-header").getBoundingClientRect().height)+"px");
+      syncReaderChrome();
+    };
+    const schedule=()=>{if(!viewportFrame)viewportFrame=requestAnimationFrame(measure);};
+    window.addEventListener("resize",schedule,{passive:true});
+    window.visualViewport?.addEventListener("resize",schedule,{passive:true});
+    if("ResizeObserver" in window){new ResizeObserver(schedule).observe($(".site-header"));new ResizeObserver(schedule).observe($("#readerPanel"));}
+    measure();
+
+    // En lille tegneflade kan åbnes i en fuld visning uden at miste streger.
+    const panel=$("#drawPanel"), tools=$(".drawing-tools"), surface=el("div","drawing-surface");
+    panel.insertBefore(surface,tools);surface.append(tools,canvas);
+    const primary=el("div","draw-primary-tools");
+    const definitions=[
+      ["penTool","Pen",'<path d="m14 5 5 5M3 21l5-1L21 7a2 2 0 0 0-4-4L4 16Z"/>'],
+      ["eraserTool","Viskelæder",'<path d="m14 3 7 7-10 11H7l-5-5L14 3ZM7 11l8 8M11 21h10"/>'],
+      ["undoDrawing","Fortryd",'<path d="m8 4-5 5 5 5M3 9h11a7 7 0 0 1 0 14"/>'],
+      ["redoDrawing","Gendan",'<path d="m16 4 5 5-5 5M21 9H10a7 7 0 0 0 0 14"/>'],
+      ["clearDrawing","Ryd",'<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>']
+    ];
+    for(const [id,label,path] of definitions){const button=$("#"+id);button.innerHTML='<svg class="mobile-tool-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+path+'</svg>';button.append(el("span","tool-label",label));if(!button.hasAttribute("aria-label"))button.setAttribute("aria-label",label);primary.append(button);}
+    const palette=el("div","drawing-palette");palette.append($("#penColors"),$(".custom-color"));
+    palette.querySelector("#penColors").setAttribute("aria-label","Penfarver. Rul vandret for at se flere farver.");
+    const size=$(".size-control");tools.replaceChildren(primary,palette,size);
+    const expand=el("button","button secondary drawing-expand","Åbn tegnefladen ↗");expand.id="expandDrawing";expand.type="button";panel.insertBefore(expand,surface);
+    const drawingDialog=el("dialog","study-dialog drawing-dialog");drawingDialog.id="drawingDialog";drawingDialog.setAttribute("aria-labelledby","drawingDialogTitle");
+    const header=el("div","dialog-toolbar"), title=el("div");title.append(el("p","eyebrow","TEGN MED FINGER, PEN ELLER MUS"),el("h2","","Tegn din model"));title.querySelector("h2").id="drawingDialogTitle";
+    const close=el("button","icon-button","×");close.type="button";close.setAttribute("aria-label","Luk tegnefladen");close.addEventListener("click",()=>drawingDialog.close());header.append(title,close);
+    const drawingHost=el("div","drawing-dialog-host");
+    const footer=el("div","drawing-dialog-footer");const answer=el("button","button secondary","Vis modelbilledet"),done=el("button","button primary","Færdig");answer.type=done.type="button";answer.addEventListener("click",()=>openGraphic());done.addEventListener("click",()=>drawingDialog.close());footer.append(answer,done);
+    drawingDialog.append(header,drawingHost,footer);document.body.append(drawingDialog);
+    let restorePoint=null;
+    expand.addEventListener("click",()=>{restorePoint=document.createComment("tegneflade");surface.before(restorePoint);drawingHost.append(surface);openDialog("drawingDialog");requestAnimationFrame(resizeCanvas);});
+    drawingDialog.addEventListener("close",()=>{restorePoint?.replaceWith(surface);restorePoint=null;document.body.classList.toggle("dialog-open",$$("dialog[open]").length>0);requestAnimationFrame(resizeCanvas);expand.focus({preventScroll:true});});
+
+    // Valgt byggekort bliver fulgt af pladsvalg; der kræves intet langt træk.
+    const hint=el("div","build-selection-hint");hint.id="mobileBuildSelection";hint.hidden=true;hint.setAttribute("role","status");
+    const copy=el("div");copy.append(el("small","","VALGT KORT"));const chosen=el("strong");chosen.id="selectedBuildLabel";copy.append(chosen,el("span","","Tryk nu på en plads."));
+    const cancel=el("button","button secondary small","Annuller");cancel.type="button";cancel.addEventListener("click",()=>{selectedCard=null;updateSelection();});hint.append(copy,cancel);$("#buildFlow").before(hint);
+    updateBuildSelectionHint();updateReaderLaunch();
+  }
+
   renderLearningContent();
+  installMobileUI();
   selectPoint(0);
   applyTheme();
   restartFlash();
