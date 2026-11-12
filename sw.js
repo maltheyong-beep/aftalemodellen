@@ -2,7 +2,7 @@
 "use strict";
 
 const PREFIX = "aftalemodellen:" + new URL(self.registration.scope).pathname + ":";
-const CACHE_NAME = PREFIX + "tavle-2026-11-12-v4";
+const CACHE_NAME = PREFIX + "tavle-2026-11-12-v5";
 const CORE = ["./", "./index.html", "./style.css", "./script.js", "./manifest.json", "./README.md"];
 self.addEventListener("install", event => {
   event.waitUntil((async () => {

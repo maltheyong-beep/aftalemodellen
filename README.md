@@ -67,7 +67,7 @@ Tegning aflæses ikke automatisk. Eleven selvvurderer: tjeklisten giver op til 7
 
 Siden kan åbnes direkte som `index.html`. PWA/offlineinstallation kræver HTTPS eller localhost og et første onlinebesøg. På iPhone/iPad bruges Safari → Del → Føj til hjemmeskærm. Dansk talestemme skal være tilgængelig på enheden; nogle stemmer kræver internet. En manglende stemme eller manglende talestøtte vises som en besked.
 
-`sw.js` har versionsmærket `tavle-2026-11-12-v4`. Cachen omfatter kun eget scope. Tema, kategori, kort og historik gemmes lokalt under `aftalemodellen.tavle-2026-11-11`; tidligere resultater for den samme tavlemodel bevares. Tegningen og den aktuelle quiz/byggeopstilling lever kun i den åbne side. Ingen konto, tracking eller backend.
+`sw.js` har versionsmærket `tavle-2026-11-12-v5`. Cachen omfatter kun eget scope. Tema, kategori, kort og historik gemmes lokalt under `aftalemodellen.tavle-2026-11-11`; tidligere resultater for den samme tavlemodel bevares. Tegningen og den aktuelle quiz/byggeopstilling lever kun i den åbne side. Ingen konto, tracking eller backend.
 
 ## Ændringer i denne udgave
 
