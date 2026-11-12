@@ -24,12 +24,12 @@
       hint: "Modtager tilbuddet / acceptant"
     },
     received: {
-      label: "Modtaget",
-      hint: "Kuvertsymbolet"
+      label: "Brevsprækkeøjeblikket",
+      hint: "Modtaget · kuvertsymbolet"
     },
     read: {
-      label: "Læst",
-      hint: "Øjesymbolet"
+      label: "Kundskabsøjeblikket",
+      hint: "Læst · øjesymbolet"
     },
     time: {
       label: "Tid og frister",
@@ -73,7 +73,7 @@
     short: "Modtager tilbud",
     kind: "recipient",
     text: "TM er tilbudsmodtager. TM modtager tilbuddet. Ved dette hovedpunkt ses både kuvert- og øjesymbolet.",
-    note: "Kuvert betyder modtaget. Øje betyder læst.",
+    note: "Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst.",
     location: "Øverst til højre"
   }, {
     id: "accept",
@@ -327,7 +327,7 @@
   const modelConcepts = [
     {id:"tg",title:"TG og TM",kind:"giver",text:"TG er tilbudsgiver. TM er tilbudsmodtager."},
     {id:"acceptant",title:"TM = acceptant",kind:"recipient",text:"TM står som acceptant, når TM sender accept."},
-    {id:"symbols",title:"Kuvert og øje",kind:"received",text:"Kuvert betyder modtaget. Øje betyder læst."},
+    {id:"symbols",title:"Kuvert og øje",kind:"received",text:"Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst."},
     ...times, ...notes
   ].map(c => ({...c,...modelConceptExtras[c.id],category:"model"}));
   const concepts = [...basicConcepts.map(c=>({...c,category:"concepts"})), ...modelConcepts];
@@ -338,7 +338,7 @@
     id: "symbols",
     kind: "received",
     title: "Kuvert: modtaget. Øje: læst.",
-    text: "To symboler, to betydninger. Hold dem adskilt, når du tegner modellen."
+    text: "Kuvert = brevsprækkeøjeblikket (modtaget). Øje = kundskabsøjeblikket (læst). Hold de to øjeblikke adskilt."
   }, {
     id: "route",
     kind: "time",
@@ -353,15 +353,15 @@
     id: "five",
     kind: "read",
     title: "5 ting du skal kunne.",
-    list: ["Kuvert betyder modtaget. Øje betyder læst.", "De tre tidsforløb: frem, betænkning og tilbage.", "§ 2: fast frist. § 3: den legale acceptfrist.", "Tilbagekaldelse skal ske inden kundskabsøjeblikket.", "§ 4: nyt tilbud. § 6: modbud. Begge forbindes med § 40."]
+    list: ["Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst.", "De tre tidsforløb: frem, betænkning og tilbage.", "§ 2: fast frist. § 3: den legale acceptfrist.", "Tilbagekaldelse skal ske inden kundskabsøjeblikket.", "§ 4: nyt tilbud. § 6: modbud. Begge forbindes med § 40."]
   }];
-  const teacherQuestions = [["Kan du forklare hovedforløbet?", "TG sender tilbud til TM. Hos TM følger betænkningstid. TM står som acceptant og sender accept tilbage. Nederst til venstre står bindende aftale."], ["Hvad betyder TG og TM?", "TG betyder tilbudsgiver. TM betyder tilbudsmodtager."], ["Hvad betyder kuverten og øjet?", "Kuvert betyder modtaget. Øje betyder læst."], ["Hvad hedder de tre tidsforløb?", "Fremsendelsestid, betænkningstid og tilbagesendelsestid."], ["Hvad står ved § 2 og § 3?", "§ 2: fast frist. § 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid."], ["Hvad står der om tilbagekaldelse?", notes[0].text], ["Hvad står ved § 4 og § 6?", "§ 4: forsinkelse, nyt tilbud. § 6: uoverensstemmende, modbud."], ["Hvad er § 4 og § 6 forbundet med?", "Pligtmæssig reklamation, § 40."]];
+  const teacherQuestions = [["Kan du forklare hovedforløbet?", "TG sender tilbud til TM. Hos TM følger betænkningstid. TM står som acceptant og sender accept tilbage. Nederst til venstre står bindende aftale."], ["Hvad betyder TG og TM?", "TG betyder tilbudsgiver. TM betyder tilbudsmodtager."], ["Hvad betyder kuverten og øjet?", "Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst."], ["Hvad hedder de tre tidsforløb?", "Fremsendelsestid, betænkningstid og tilbagesendelsestid."], ["Hvad står ved § 2 og § 3?", "§ 2: fast frist. § 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid."], ["Hvad står der om tilbagekaldelse?", notes[0].text], ["Hvad står ved § 4 og § 6?", "§ 4: forsinkelse, nyt tilbud. § 6: uoverensstemmende, modbud."], ["Hvad er § 4 og § 6 forbundet med?", "Pligtmæssig reklamation, § 40."]];
   teacherQuestions.push(
     ["Bliver jeg bundet, bare fordi jeg er stille?","Nej, tavshed er normalt ikke i sig selv accept. Ved stiltiende løfte kan handlingerne vise accepten, fx når du køber og betaler ved kassen uden at sige ja."],
     ["Skal en aftale altid skrives under?","Nej, som udgangspunkt kan den også indgås mundtligt. Skrift gør det ofte lettere at bevise aftalen; visse aftaletyper har særlige formkrav."],
     ["Kan du forklare de fire ord?","Løfte: Jeg påtager mig en pligt. Tilbud: Mit forslag til aftalen. Accept: Mit ja til forslaget. Påbud: En meddelelse med retsvirkning for modtageren, fx en gyldig opsigelse."]
   );
-  const modelFlashcards = [["ROLLER", "Hvad betyder TG?", "Tilbudsgiver.", "giver"], ["ROLLER", "Hvad betyder TM?", "Tilbudsmodtager.", "recipient"], ["TILBUD", "Hvem sender tilbuddet?", "TG, tilbudsgiver.", "giver"], ["TILBUD", "Hvem modtager tilbuddet?", "TM, tilbudsmodtager.", "recipient"], ["SYMBOLER", "Hvad betyder kuvertsymbolet?", "Modtaget.", "received"], ["SYMBOLER", "Hvad betyder øjesymbolet?", "Læst.", "read"], ["TIDSFORLØB", "Hvad hedder strækningen fra TG til TM øverst?", "Fremsendelsestid.", "time"], ["TIDSFORLØB", "Hvad hedder det lodrette tidsforløb hos TM?", "Betænkningstid.", "time"], ["TIDSFORLØB", "Hvad hedder tidsforløbet tilbage mod TG?", "Tilbagesendelsestid.", "time"], ["ACCEPT", "Hvad kaldes TM, når TM sender accept?", "Acceptant.", "recipient"], ["ACCEPT", "Hvem sender accepten?", "TM, der står som acceptant.", "recipient"], ["AFSLUTNING", "Hvad står nederst til venstre?", "Bindende aftale.", "read"], ["FRISTER", "Hvad står ved AFTL § 2?", "Fast frist.", "time"], ["FRISTER", "Hvad står ved AFTL § 3?", "Den legale acceptfrist.", "time"], ["FRISTER", "Hvilke tider nævnes under den legale acceptfrist?", "Rimelig betænkningstid samt frem- og tilbagesendelsestid.", "time"], ["TILBAGEKALDELSE", "Hvad kan tilbagekaldes ifølge noten?", "Tilbud/accept.", "withdraw"], ["TILBAGEKALDELSE", "Hvornår skal tilbagekaldelse af tilbud/accept ske?", "Inden kundskabsøjeblikket.", "withdraw"], ["AFVIGELSER", "Hvilken paragraf står ved forsinkelse?", "§ 4.", "exception"], ["AFVIGELSER", "Hvilken note står ved forsinkelse?", "Nyt tilbud.", "exception"], ["AFVIGELSER", "Hvilken paragraf står ved uoverensstemmende?", "§ 6.", "exception"], ["AFVIGELSER", "Hvilken note står ved uoverensstemmende?", "Modbud.", "exception"], ["REKLAMATION", "Hvilken paragraf står ved pligtmæssig reklamation?", "§ 40.", "claim"], ["REKLAMATION", "Hvilke to paragraffer forbindes med pligtmæssig reklamation?", "§ 4 og § 6.", "claim"], ["RÆKKEFØLGE", "Hvad følger efter fremsendelsestiden?", "TM modtager tilbuddet.", "recipient"], ["RÆKKEFØLGE", "Hvilket hovedpunkt følger efter betænkningstiden?", "TM = acceptant, sender accept.", "recipient"], ["RÆKKEFØLGE", "Hvad følger efter TM sender accept?", "Tilbagesendelsestid tilbage mod venstre.", "time"], ["FRISTER", "Hvilken paragraf forbindes med rimelig betænkningstid?", "§ 3, den legale acceptfrist.", "time"], ["OVERBLIK", "Nævn de fire hovedpunkter i rækkefølge.", "TG sender tilbud. TM modtager tilbud. TM = acceptant, sender accept. Bindende aftale.", "giver"]].map((c, i) => ({
+  const modelFlashcards = [["ROLLER", "Hvad betyder TG?", "Tilbudsgiver.", "giver"], ["ROLLER", "Hvad betyder TM?", "Tilbudsmodtager.", "recipient"], ["TILBUD", "Hvem sender tilbuddet?", "TG, tilbudsgiver.", "giver"], ["TILBUD", "Hvem modtager tilbuddet?", "TM, tilbudsmodtager.", "recipient"], ["SYMBOLER", "Hvad betyder kuvertsymbolet?", "Brevsprækkeøjeblikket: meddelelsen er modtaget.", "received"], ["SYMBOLER", "Hvad betyder øjesymbolet?", "Kundskabsøjeblikket: meddelelsen er læst.", "read"], ["TIDSFORLØB", "Hvad hedder strækningen fra TG til TM øverst?", "Fremsendelsestid.", "time"], ["TIDSFORLØB", "Hvad hedder det lodrette tidsforløb hos TM?", "Betænkningstid.", "time"], ["TIDSFORLØB", "Hvad hedder tidsforløbet tilbage mod TG?", "Tilbagesendelsestid.", "time"], ["ACCEPT", "Hvad kaldes TM, når TM sender accept?", "Acceptant.", "recipient"], ["ACCEPT", "Hvem sender accepten?", "TM, der står som acceptant.", "recipient"], ["AFSLUTNING", "Hvad står nederst til venstre?", "Bindende aftale.", "read"], ["FRISTER", "Hvad står ved AFTL § 2?", "Fast frist.", "time"], ["FRISTER", "Hvad står ved AFTL § 3?", "Den legale acceptfrist.", "time"], ["FRISTER", "Hvilke tider nævnes under den legale acceptfrist?", "Rimelig betænkningstid samt frem- og tilbagesendelsestid.", "time"], ["TILBAGEKALDELSE", "Hvad kan tilbagekaldes ifølge noten?", "Tilbud/accept.", "withdraw"], ["TILBAGEKALDELSE", "Hvornår skal tilbagekaldelse af tilbud/accept ske?", "Inden kundskabsøjeblikket.", "withdraw"], ["AFVIGELSER", "Hvilken paragraf står ved forsinkelse?", "§ 4.", "exception"], ["AFVIGELSER", "Hvilken note står ved forsinkelse?", "Nyt tilbud.", "exception"], ["AFVIGELSER", "Hvilken paragraf står ved uoverensstemmende?", "§ 6.", "exception"], ["AFVIGELSER", "Hvilken note står ved uoverensstemmende?", "Modbud.", "exception"], ["REKLAMATION", "Hvilken paragraf står ved pligtmæssig reklamation?", "§ 40.", "claim"], ["REKLAMATION", "Hvilke to paragraffer forbindes med pligtmæssig reklamation?", "§ 4 og § 6.", "claim"], ["RÆKKEFØLGE", "Hvad følger efter fremsendelsestiden?", "TM modtager tilbuddet.", "recipient"], ["RÆKKEFØLGE", "Hvilket hovedpunkt følger efter betænkningstiden?", "TM = acceptant, sender accept.", "recipient"], ["RÆKKEFØLGE", "Hvad følger efter TM sender accept?", "Tilbagesendelsestid tilbage mod venstre.", "time"], ["FRISTER", "Hvilken paragraf forbindes med rimelig betænkningstid?", "§ 3, den legale acceptfrist.", "time"], ["OVERBLIK", "Nævn de fire hovedpunkter i rækkefølge.", "TG sender tilbud. TM modtager tilbud. TM = acceptant, sender accept. Bindende aftale.", "giver"]].map((c, i) => ({
     id: "board-f" + i,
     topic: c[0],
     question: c[1],
@@ -1494,7 +1494,7 @@
   function modelSvg(forceLight = false, prefix = "model", selected = -1, animate = false) {
     const key = typeof selected === "string" ? selected : ["send","receive","accept","binding"][selected];
     const region = MODEL_REGIONS[key];
-    const description = "TG sender tilbud til TM gennem fremsendelsestiden. Hos TM følger betænkningstid. TM er acceptant og sender accept tilbage gennem tilbagesendelsestiden til bindende aftale. Kuvert betyder modtaget. Øje betyder læst. Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket. AFTL paragraf 2: fast frist. Paragraf 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid. Forsinkelse: paragraf 4, nyt tilbud. Uoverensstemmende: paragraf 6, modbud. Begge forbindes med pligtmæssig reklamation, paragraf 40.";
+    const description = "TG sender tilbud til TM gennem fremsendelsestiden. Hos TM følger betænkningstid. TM er acceptant og sender accept tilbage gennem tilbagesendelsestiden til bindende aftale. Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst. Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket. AFTL paragraf 2: fast frist. Paragraf 3: den legale acceptfrist med rimelig betænkningstid samt frem- og tilbagesendelsestid. Forsinkelse: paragraf 4, nyt tilbud. Uoverensstemmende: paragraf 6, modbud. Begge forbindes med pligtmæssig reklamation, paragraf 40.";
     let svg = `<svg class="model-svg original-model" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1536 1024" role="img" aria-labelledby="${prefix}-title ${prefix}-desc"><title id="${prefix}-title">Dit whiteboardbillede af aftalemodellen</title><desc id="${prefix}-desc">${escapeXml(description)}</desc><image href="${MODEL_IMAGE}" x="0" y="0" width="1536" height="1024"/>`;
     if (region) {
       const [x,y,w,h]=region;
@@ -1511,6 +1511,14 @@
 
   // Kort, begreber og huskehjælp dannes af de samme kildetekster.
   function renderLearningContent() {
+    const symbolRows = $$("#symbolComparison tbody tr");
+    for (const [index, kind] of ["received", "read"].entries()) {
+      const cell = symbolRows[index]?.querySelector("td");
+      if (cell) cell.replaceChildren(
+        el("strong", "", TYPES[kind].label),
+        el("p", "quiet", kind === "received" ? "Modtaget" : "Læst")
+      );
+    }
     for (const [kind, type] of Object.entries(TYPES)) {
       const item = el("div", "legend-item");
       item.dataset.kind = kind;
@@ -2562,7 +2570,7 @@
     picture.setAttribute("aria-label", "Åbn whiteboardbilledet i stor visning");
     picture.innerHTML = modelSvg(false, "cheat");
     picture.addEventListener("click", () => openGraphic());
-    route.append(picture, el("p", "source-note", "TG = tilbudsgiver. TM = tilbudsmodtager. Kuvert = modtaget. Øje = læst. Tryk på billedet for at zoome."));
+    route.append(picture, el("p", "source-note", "TG = tilbudsgiver. TM = tilbudsmodtager. Kuvert = brevsprækkeøjeblikket (modtaget). Øje = kundskabsøjeblikket (læst). Tryk på billedet for at zoome."));
     const side = el("section");
     side.append(el("h3", "", "Tavlens noter"));
     const n = el("div", "cheat-notes");
@@ -2613,10 +2621,10 @@
     "title": "3. TM modtager tilbud",
     "region": "receive",
     "kind": "received",
-    "text": "Nu er du hos TM øverst til højre. Hold de to symboler adskilt.",
+    "text": "Nu er du hos TM øverst til højre. Skeln mellem, at tilbuddet er modtaget, og at det er læst.",
     "items": [
-      "Kuvert: modtaget.",
-      "Øje: læst."
+      "Kuvert = brevsprækkeøjeblikket: tilbuddet er modtaget.",
+      "Øje = kundskabsøjeblikket: tilbuddet er læst."
     ]
   },
   {
@@ -2653,8 +2661,8 @@
     "kind": "read",
     "text": "Returforløbet ender nederst til venstre ved bindende aftale.",
     "items": [
-      "Peg på kuverten og øjet.",
-      "Forklar modtaget og læst."
+      "Kuvert = brevsprækkeøjeblikket: accepten er modtaget.",
+      "Øje = kundskabsøjeblikket: accepten er læst."
     ]
   },
   {
@@ -2683,7 +2691,7 @@
     "text": "Boksens ordlyd: Tilbagekaldelse af tilbud/accept skal ske inden kundskabsøjeblikket.",
     "items": [
       "Både tilbud og accept er nævnt.",
-      "Pilene knytter noten til øjesymbolerne."
+      "Pilene peger på øjet: kundskabsøjeblikket (læst)."
     ]
   },
   {
@@ -3070,7 +3078,7 @@
   document.addEventListener("click", e => {
     const b = e.target.closest("[data-read]");
     if (!b) return;
-    if (b.dataset.read === "overview") readOne("Kort fortalt", overviewText, $("#overviewCard"));else if (b.dataset.read === "symbols") readOne("Symbolerne", "Kuvert betyder modtaget. Øje betyder læst.", $("#symbolComparison"));else if (b.dataset.read === "whole-model") readEntries(modelReadingEntries());
+    if (b.dataset.read === "overview") readOne("Kort fortalt", overviewText, $("#overviewCard"));else if (b.dataset.read === "symbols") readOne("Symbolerne", "Kuverten viser brevsprækkeøjeblikket: meddelelsen er modtaget. Øjet viser kundskabsøjeblikket: meddelelsen er læst.", $("#symbolComparison"));else if (b.dataset.read === "whole-model") readEntries(modelReadingEntries());
   });
   if (speechSupported) {
     loadVoices();
